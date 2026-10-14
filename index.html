@@ -228,6 +228,7 @@
       </select>
     </div>
     <label class="check"><input type="checkbox" id="relative" checked> Tom menor pelo relativo maior</label>
+    <label class="check" title="Ao trocar o tom, os acordes da cifra original mudam junto. Desmarque para só corrigir o tom em que a cifra está escrita."><input type="checkbox" id="transpose" checked> Transpor acordes ao trocar o tom</label>
     <div class="ref" id="ref" aria-live="polite"></div>
   </section>
 
@@ -409,9 +410,80 @@ function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+// ---------- 4b. Transpor a cifra para outro tom ----------
+// Cada acorde mantém o mesmo grau no tom novo, então os graus não mudam.
+// As notas são escritas pela escala do tom (bemóis em F, Bb, Eb...; sustenidos em G, D, A...):
+// em C, o b7 é "Bb" e não "A#".
+const LETTERS = "CDEFGAB";
+const LETTER_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+const TOM_LINE_RE = /(Tom:\s*)([A-G])([#b]?)/i;
+
+// Tônica de referência para escrever as notas: num tom menor, a do relativo maior (Am usa C).
+function keySpelling(rootName, mode) {
+  let letter = LETTERS.indexOf(rootName[0]);
+  let semi = noteToSemitone(rootName[0], rootName.slice(1));
+  if (mode === "minor") { letter += 2; semi = (semi + 3) % 12; }
+  return { letter, semi };
+}
+
+function spellNote(letterIndex, semi) {
+  const i = letterIndex % 7;
+  let diff = (((semi - LETTER_SEMITONES[i]) % 12) + 12) % 12;
+  if (diff > 6) diff -= 12;
+  if (Math.abs(diff) > 1) return ROOT_OPTIONS[semi]; // evita dobrado sustenido/bemol
+  const name = LETTERS[i] + (diff === 1 ? "#" : diff === -1 ? "b" : "");
+  return SIMPLE_NAMES[name] || name;
+}
+// Notas teoricamente certas, mas que ninguém usa na cifra: E# vira F, B# vira C...
+const SIMPLE_NAMES = { "E#": "F", "B#": "C", "Cb": "B", "Fb": "E" };
+
+// Nota que ocupa a distância "d" (em semitons) a partir da tônica, no tom "key"
+function noteAt(key, d) {
+  const step = parseInt(MAJOR_DEGREES[d].replace(/[b#]/, ""), 10) - 1;
+  return spellNote(key.letter + step, (key.semi + d) % 12);
+}
+
+function transposeLine(line, from, to) {
+  // Linha "Tom: D" -> "Tom: C" (mantém o "m" de menor e o resto da linha)
+  if (TOM_LINE_RE.test(line)) {
+    return line.replace(TOM_LINE_RE, (_, label, letter, acc) => {
+      const d = (noteToSemitone(letter.toUpperCase(), acc) - from.semi + 12) % 12;
+      return label + noteAt(to, d);
+    });
+  }
+  const tokens = [...line.matchAll(/\S+/g)];
+  if (tokens.length === 0) return line;
+  const pieces = [];
+  let chords = 0;
+  for (const t of tokens) {
+    const raw = t[0];
+    if (LABEL_RE.test(raw) || PARENS_ONLY_RE.test(raw)) { pieces.push({ col: t.index, text: raw }); continue; }
+    const parts = splitToken(raw);
+    if (!parts) return line; // é letra da música: fica como está
+    const chord = parseChord(parts.core);
+    let name = noteAt(to, (chord.root - from.semi + 12) % 12) + chord.suffix;
+    if (chord.bass !== null) name += "/" + noteAt(to, (chord.bass - from.semi + 12) % 12);
+    pieces.push({ col: t.index, text: parts.lead + name + parts.trail });
+    chords++;
+  }
+  if (!chords) return line;
+  // Mantém cada acorde na mesma coluna, para continuar sobre a mesma sílaba
+  let out = "";
+  for (const p of pieces) {
+    out += " ".repeat(Math.max(p.col - out.length, out.length ? 1 : 0)) + p.text;
+  }
+  return out;
+}
+
+function transposeText(text, fromRoot, toRoot, mode) {
+  if (fromRoot === toRoot) return text;
+  const from = keySpelling(fromRoot, mode), to = keySpelling(toRoot, mode);
+  return text.split("\n").map((line) => transposeLine(line, from, to)).join("\n");
+}
+
 // ---------- 5. Interface ----------
 const $ = (id) => document.getElementById(id);
-const rootSel = $("root"), modeSel = $("mode"), relativeChk = $("relative");
+const rootSel = $("root"), modeSel = $("mode"), relativeChk = $("relative"), transposeChk = $("transpose");
 const input = $("input"), output = $("output"), refEl = $("ref"), statusEl = $("status");
 
 ROOT_OPTIONS.forEach((n) => rootSel.add(new Option(n, n)));
@@ -473,6 +545,7 @@ function highlightDegreeLine(line) {
 }
 
 function render() {
+  keyRoot = rootSel.value;
   const settings = getSettings();
   refEl.innerHTML = "Graus contados a partir de <strong>" + escapeHtml(settings.refName) + "</strong>";
   relativeChk.disabled = modeSel.value !== "minor";
@@ -540,7 +613,23 @@ function detectKey() {
 }
 
 input.addEventListener("input", () => { detectKey(); render(); });
-[rootSel, modeSel, relativeChk].forEach((el) => el.addEventListener("change", render));
+[modeSel, relativeChk].forEach((el) => el.addEventListener("change", render));
+
+// Trocar o tom transpõe a cifra original (linha "Tom:" e acordes). Os graus continuam iguais.
+// Com "Transpor acordes" desmarcado, só corrige o tom em que a cifra está escrita.
+let keyRoot = rootSel.value; // tom antes da troca
+rootSel.addEventListener("change", () => {
+  const from = keyRoot, to = rootSel.value;
+  if (transposeChk.checked && from !== to) {
+    input.value = transposeText(input.value, from, to, modeSel.value);
+    if (manualGraus !== null) { // graus editados à mão: só a linha "Tom:" muda
+      const f = keySpelling(from, modeSel.value), t = keySpelling(to, modeSel.value);
+      manualGraus = manualGraus.split("\n").map((l) => TOM_LINE_RE.test(l) ? transposeLine(l, f, t) : l).join("\n");
+      if (editing) gradesEdit.value = manualGraus;
+    }
+  }
+  render();
+});
 
 $("clear").addEventListener("click", () => { input.value = ""; manualGraus = null; setEditing(false); render(); input.focus(); });
 
