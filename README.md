@@ -10,17 +10,26 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 - Marca a qualidade só quando o acorde foge do campo (empréstimo modal ou acorde de outra escala): em C, `Fm` vira `4m`, `E7` vira `3M` e `Bb` vira `b7M`
 - Mantém os graus na mesma coluna dos acordes originais
 - Exporta o resultado para Word (.docx), pedindo o nome da música para nomear o arquivo, ou copia para a área de transferência
-- Tudo roda no navegador: nenhum texto é enviado para servidor
+- Registro de cifras (com login): salvar, buscar, abrir para editar e excluir cifras, guardadas no Supabase
+- A conversão roda no navegador; só as cifras que você salva vão para o banco
 
 ## Como usar
 
 Abra a página, cole a cifra na caixa da esquerda e copie ou baixe o resultado da direita.
 Ao colar no Word, use uma fonte monoespaçada (Consolas ou Courier New) para manter o alinhamento.
 
+## Registro de cifras
+
+- Login com uma conta fixa do grupo; não há cadastro (desligado no Supabase).
+- O usuário sem "@" vira e-mail no domínio do site: `meta` = `meta@conversor-cifra-graus.vercel.app`.
+- Tabela `cifras` no Supabase com RLS: só usuários logados leem e alteram.
+- Para trocar a senha ou criar outra conta: Supabase → Authentication → Users.
+
 ## Tecnologias
 
 - HTML, CSS e JavaScript puro
 - [docx](https://www.npmjs.com/package/docx) para gerar o arquivo Word no navegador
+- [Supabase](https://supabase.com) para login e banco de dados do registro de cifras
 
 ## Rodando localmente
 

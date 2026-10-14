@@ -115,7 +115,7 @@
   }
   .songbar .status { min-height: 0; }
   .songbar .status.dirty { color: var(--chord); }
-  dialog input[type="email"], dialog input[type="password"], dialog input[type="search"] {
+  dialog input[type="text"]#loginEmail, dialog input[type="password"], dialog input[type="search"] {
     width: 100%; font: inherit; color: var(--ink); background: var(--bg);
     border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;
   }
@@ -211,8 +211,8 @@
 <dialog id="loginDialog" aria-labelledby="loginTitle">
   <form id="loginForm">
     <h2 id="loginTitle">Entrar</h2>
-    <label for="loginEmail">E-mail</label>
-    <input type="email" id="loginEmail" autocomplete="username" required>
+    <label for="loginEmail">Usuário</label>
+    <input type="text" id="loginEmail" autocomplete="username" autocapitalize="none" spellcheck="false" required>
     <label for="loginPassword">Senha</label>
     <input type="password" id="loginPassword" autocomplete="current-password" required>
     <p class="error" id="loginError" role="alert"></p>
@@ -532,6 +532,14 @@ const SUPABASE_URL = "https://szczcmaholhoqrpxowgi.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3pjbWFob2xob3FycHhvd2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NzQ0NDcsImV4cCI6MjEwNzU1MDQ0N30.CWKt87_3CpVdi88-LG9WcmjhWTPnBOGbx3kfdwLGMw8";
 const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
+// O Supabase exige e-mail como login. Para permitir um usuário simples (ex.: "Meta"),
+// o nome sem "@" vira um e-mail no domínio do próprio site: meta@conversor-cifra-graus.vercel.app
+const LOGIN_DOMAIN = "conversor-cifra-graus.vercel.app";
+function loginToEmail(login) {
+  const value = login.trim().toLowerCase();
+  return value.includes("@") ? value : value + "@" + LOGIN_DOMAIN;
+}
+
 const titleInput = $("title"), saveStatus = $("saveStatus"), saveBtn = $("save");
 const loginDialog = $("loginDialog"), loginError = $("loginError");
 const libDialog = $("libDialog"), libList = $("libList"), libSearch = $("libSearch");
@@ -684,11 +692,11 @@ if (sb) {
     $("loginSubmit").disabled = true;
     loginError.textContent = "";
     const { error } = await sb.auth.signInWithPassword({
-      email: $("loginEmail").value.trim(),
+      email: loginToEmail($("loginEmail").value),
       password: $("loginPassword").value,
     });
     $("loginSubmit").disabled = false;
-    if (error) { loginError.textContent = "E-mail ou senha incorretos."; return; }
+    if (error) { loginError.textContent = "Usuário ou senha incorretos."; return; }
     $("loginPassword").value = "";
     loginDialog.close();
   });
