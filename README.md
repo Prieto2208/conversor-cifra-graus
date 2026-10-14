@@ -5,7 +5,7 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 ## Funcionalidades
 
 - Detecta automaticamente o tom a partir de uma linha `Tom: Cm`
-- Trocar o tom transpõe a cifra original (acordes, baixos e a linha `Tom:`), mantendo os mesmos graus; dá para desmarcar "Transpor acordes" para só corrigir o tom
+- Tom + Modo formam o tom da música e a cifra original acompanha: trocar transpõe acordes, baixos e a linha `Tom:`, mantendo os mesmos graus. Tons relativos (Am e C) mantêm os acordes. Dá para desmarcar "Transpor acordes" para só corrigir o tom
 - Tons maiores e menores, com opção de numerar o tom menor pelo relativo maior
 - Mostra só o grau do acorde no campo harmônico: em C, `Am` vira `6`, `Dm7` vira `2` e o baixo invertido é mantido (`G/B` vira `5/7`)
 - Marca a qualidade só quando o acorde foge do campo (empréstimo modal ou acorde de outra escala): em C, `Fm` vira `4m`, `E7` vira `3M` e `Bb` vira `b7M`

@@ -416,7 +416,7 @@ function escapeHtml(s) {
 // em C, o b7 é "Bb" e não "A#".
 const LETTERS = "CDEFGAB";
 const LETTER_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
-const TOM_LINE_RE = /(Tom:\s*)([A-G])([#b]?)/i;
+const TOM_LINE_RE = /(Tom:\s*)([A-G])([#b]?)(m(?!aj))?/i;
 
 // Tônica de referência para escrever as notas: num tom menor, a do relativo maior (Am usa C).
 function keySpelling(rootName, mode) {
@@ -444,13 +444,6 @@ function noteAt(key, d) {
 }
 
 function transposeLine(line, from, to) {
-  // Linha "Tom: D" -> "Tom: C" (mantém o "m" de menor e o resto da linha)
-  if (TOM_LINE_RE.test(line)) {
-    return line.replace(TOM_LINE_RE, (_, label, letter, acc) => {
-      const d = (noteToSemitone(letter.toUpperCase(), acc) - from.semi + 12) % 12;
-      return label + noteAt(to, d);
-    });
-  }
   const tokens = [...line.matchAll(/\S+/g)];
   if (tokens.length === 0) return line;
   const pieces = [];
@@ -475,10 +468,21 @@ function transposeLine(line, from, to) {
   return out;
 }
 
-function transposeText(text, fromRoot, toRoot, mode) {
-  if (fromRoot === toRoot) return text;
-  const from = keySpelling(fromRoot, mode), to = keySpelling(toRoot, mode);
-  return text.split("\n").map((line) => transposeLine(line, from, to)).join("\n");
+// Linha "Tom:" da cifra passa a dizer o tom selecionado (ex.: "Tom: Am" -> "Tom: C")
+function setTomLine(text, root, mode) {
+  return text.replace(TOM_LINE_RE, (_, label) => label + root + (mode === "minor" ? "m" : ""));
+}
+
+// Leva a cifra do tom "fromKey" para "toKey" ({ root, mode }), mantendo os graus.
+// Tons relativos (Am e C) têm o mesmo campo harmônico: os acordes não mudam, só a linha "Tom:".
+// Ex.: Am -> Cm sobe 3 semitons; Cm -> C maior volta para os acordes de Am; Am -> A maior vai para o campo de A.
+function transposeText(text, fromKey, toKey) {
+  const from = keySpelling(fromKey.root, fromKey.mode), to = keySpelling(toKey.root, toKey.mode);
+  let result = text;
+  if (from.semi !== to.semi) {
+    result = text.split("\n").map((line) => TOM_LINE_RE.test(line) ? line : transposeLine(line, from, to)).join("\n");
+  }
+  return setTomLine(result, toKey.root, toKey.mode);
 }
 
 // ---------- 5. Interface ----------
@@ -546,6 +550,7 @@ function highlightDegreeLine(line) {
 
 function render() {
   keyRoot = rootSel.value;
+  keyMode = modeSel.value;
   const settings = getSettings();
   refEl.innerHTML = "Graus contados a partir de <strong>" + escapeHtml(settings.refName) + "</strong>";
   relativeChk.disabled = modeSel.value !== "minor";
@@ -613,27 +618,25 @@ function detectKey() {
 }
 
 input.addEventListener("input", () => { detectKey(); render(); });
-[modeSel, relativeChk].forEach((el) => el.addEventListener("change", render));
+relativeChk.addEventListener("change", render);
 
-// Trocar o tom transpõe a cifra original (linha "Tom:" e acordes). Os graus continuam iguais.
+// Tom + Modo formam o tom da música, e a cifra original acompanha o que está selecionado
+// (acordes, baixos e linha "Tom:"). Os graus continuam iguais.
 // Com "Transpor acordes" desmarcado, só corrige o tom em que a cifra está escrita.
-let keyRoot = rootSel.value; // tom antes da troca
-rootSel.addEventListener("change", () => {
-  const from = keyRoot, to = rootSel.value;
-  if (!transposeChk.checked && from !== to) {
-    // Só corrige o tom: a linha "Tom:" acompanha o seletor, os acordes ficam como estão
-    input.value = input.value.replace(TOM_LINE_RE, (_, label) => label + to);
-  }
-  if (transposeChk.checked && from !== to) {
-    input.value = transposeText(input.value, from, to, modeSel.value);
+let keyRoot = rootSel.value, keyMode = modeSel.value; // tom antes da troca
+function onKeyChange() {
+  const from = { root: keyRoot, mode: keyMode }, to = { root: rootSel.value, mode: modeSel.value };
+  if (from.root !== to.root || from.mode !== to.mode) {
+    input.value = transposeChk.checked ? transposeText(input.value, from, to) : setTomLine(input.value, to.root, to.mode);
     if (manualGraus !== null) { // graus editados à mão: só a linha "Tom:" muda
-      const f = keySpelling(from, modeSel.value), t = keySpelling(to, modeSel.value);
-      manualGraus = manualGraus.split("\n").map((l) => TOM_LINE_RE.test(l) ? transposeLine(l, f, t) : l).join("\n");
+      manualGraus = setTomLine(manualGraus, to.root, to.mode);
       if (editing) gradesEdit.value = manualGraus;
     }
   }
   render();
-});
+}
+rootSel.addEventListener("change", onKeyChange);
+modeSel.addEventListener("change", onKeyChange);
 
 $("clear").addEventListener("click", () => { input.value = ""; manualGraus = null; setEditing(false); render(); input.focus(); });
 
