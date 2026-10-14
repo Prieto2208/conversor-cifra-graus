@@ -81,6 +81,22 @@
   }
   .btns { display: flex; gap: 8px; }
   .status { font-size: 0.85rem; color: var(--muted); min-height: 1.3em; }
+
+  /* Janela que pede o nome do arquivo Word */
+  dialog {
+    width: min(420px, calc(100% - 32px)); padding: 20px; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
+  dialog h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  dialog label { display: block; font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  dialog input[type="text"] {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+  }
+  dialog .hint { font-size: 0.85rem; color: var(--muted); margin: 8px 0 16px; overflow-wrap: anywhere; }
+  dialog .hint strong { color: var(--ink); }
+  dialog .btns { justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -125,6 +141,19 @@
     </div>
   </div>
 </main>
+
+<dialog id="nameDialog" aria-labelledby="nameTitle">
+  <form id="nameForm">
+    <h2 id="nameTitle">Baixar Word</h2>
+    <label for="fileName">Nome da música</label>
+    <input type="text" id="fileName" placeholder="Ex.: Ousado Amor" autocomplete="off" maxlength="100">
+    <p class="hint">Será salvo como <strong id="filePreview">cifra-em-graus.docx</strong></p>
+    <div class="btns">
+      <button type="button" class="ghost" id="nameCancel">Cancelar</button>
+      <button type="submit">Baixar</button>
+    </div>
+  </form>
+</dialog>
 
 <script>
 // ---------- 1. Teoria: notas e graus ----------
@@ -377,13 +406,37 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-$("word").addEventListener("click", async () => {
+// Nome do arquivo: tira caracteres que o Windows não aceita (\ / : * ? " < > |)
+// e usa "cifra-em-graus" quando o campo fica vazio.
+function safeFileName(name) {
+  const clean = name.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().replace(/\.docx$/i, "");
+  return (clean || "cifra-em-graus") + ".docx";
+}
+
+const nameDialog = $("nameDialog"), fileNameInput = $("fileName"), filePreview = $("filePreview");
+let lastFileName = ""; // lembra o nome usado no último download
+
+fileNameInput.addEventListener("input", () => { filePreview.textContent = safeFileName(fileNameInput.value); });
+$("nameCancel").addEventListener("click", () => nameDialog.close());
+
+$("word").addEventListener("click", () => {
   if (!input.value.trim()) { statusEl.textContent = "Cole uma cifra antes de baixar."; return; }
   if (!window.docx) { statusEl.textContent = "Não foi possível carregar o gerador de Word. Verifique sua conexão."; return; }
+  fileNameInput.value = lastFileName;
+  filePreview.textContent = safeFileName(lastFileName);
+  nameDialog.showModal();
+  fileNameInput.select();
+});
+
+$("nameForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const filename = safeFileName(fileNameInput.value);
+  lastFileName = fileNameInput.value.trim();
+  nameDialog.close();
   try {
     const blob = await buildDocx();
-    downloadBlob(blob, "cifra-em-graus.docx");
-    statusEl.textContent = "Word baixado.";
+    downloadBlob(blob, filename);
+    statusEl.textContent = "Word baixado: " + filename;
   } catch (err) {
     console.error(err);
     statusEl.textContent = "Não foi possível gerar o Word. Use o botão Copiar.";
