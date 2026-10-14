@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
   :root {
     --bg: #EEF1F5;
@@ -97,12 +98,64 @@
   dialog .hint { font-size: 0.85rem; color: var(--muted); margin: 8px 0 16px; overflow-wrap: anywhere; }
   dialog .hint strong { color: var(--ink); }
   dialog .btns { justify-content: flex-end; }
+
+  /* Registro de cifras (Supabase) */
+  .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  .account { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .account .who { font-size: 0.85rem; color: var(--muted); }
+  body[data-auth="out"] .only-in, body[data-auth="in"] .only-out, body:not([data-auth]) .only-in { display: none !important; }
+  .songbar {
+    display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 18px; margin-bottom: 20px;
+  }
+  .songbar input {
+    flex: 1 1 260px; font: inherit; font-weight: 600; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px;
+  }
+  .songbar .status { min-height: 0; }
+  .songbar .status.dirty { color: var(--chord); }
+  dialog input[type="email"], dialog input[type="password"], dialog input[type="search"] {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;
+  }
+  dialog .error { color: var(--chord); font-size: 0.85rem; min-height: 1.2em; margin: 0 0 10px; }
+  #libDialog { width: min(640px, calc(100% - 32px)); }
+  .lib-list { list-style: none; margin: 0 0 16px; padding: 0; max-height: 55vh; overflow: auto; border-top: 1px solid var(--line); }
+  .lib-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .lib-open {
+    flex: 1; min-width: 0; text-align: left; background: transparent; border: 0; color: var(--ink);
+    padding: 4px 6px; font-weight: 400;
+  }
+  .lib-open:hover { background: var(--bg); }
+  .lib-open strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lib-open span { font-size: 0.8rem; color: var(--muted); }
+  .lib-empty { color: var(--muted); padding: 12px 0; }
+  button.danger { border-color: var(--chord); background: var(--chord); color: var(--accent-ink); }
+  button.ghost.danger { background: transparent; color: var(--chord); }
+  button:disabled { opacity: 0.6; cursor: default; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Conversor de cifra para graus</h1>
-  <p class="lead">Cole a cifra à esquerda. As linhas de acordes são convertidas em graus e a letra fica como está, na mesma posição. Tudo acontece no seu navegador.</p>
+  <div class="topbar">
+    <div>
+      <h1>Conversor de cifra para graus</h1>
+      <p class="lead">Cole a cifra à esquerda. As linhas de acordes são convertidas em graus e a letra fica como está, na mesma posição.</p>
+    </div>
+    <div class="account" id="account" hidden>
+      <button class="ghost only-out" id="loginOpen">Entrar</button>
+      <button class="only-in" id="libOpen">Cifras salvas</button>
+      <button class="ghost only-in" id="logout">Sair</button>
+    </div>
+  </div>
+
+  <section class="songbar only-in" aria-label="Música">
+    <input type="text" id="title" placeholder="Nome da música" maxlength="200" aria-label="Nome da música">
+    <button class="ghost" id="newSong">Nova</button>
+    <button id="save">Salvar</button>
+    <span class="status" id="saveStatus" aria-live="polite"></span>
+  </section>
 
   <section class="controls" aria-label="Configurações">
     <div class="field">
@@ -153,6 +206,30 @@
       <button type="submit">Baixar</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="loginDialog" aria-labelledby="loginTitle">
+  <form id="loginForm">
+    <h2 id="loginTitle">Entrar</h2>
+    <label for="loginEmail">E-mail</label>
+    <input type="email" id="loginEmail" autocomplete="username" required>
+    <label for="loginPassword">Senha</label>
+    <input type="password" id="loginPassword" autocomplete="current-password" required>
+    <p class="error" id="loginError" role="alert"></p>
+    <div class="btns">
+      <button type="button" class="ghost" id="loginCancel">Cancelar</button>
+      <button type="submit" id="loginSubmit">Entrar</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="libDialog" aria-labelledby="libTitle">
+  <h2 id="libTitle">Cifras salvas</h2>
+  <input type="search" id="libSearch" placeholder="Buscar pelo nome da música" aria-label="Buscar pelo nome da música">
+  <ul class="lib-list" id="libList"></ul>
+  <div class="btns">
+    <button type="button" class="ghost" id="libClose">Fechar</button>
+  </div>
 </dialog>
 
 <script>
@@ -422,8 +499,9 @@ $("nameCancel").addEventListener("click", () => nameDialog.close());
 $("word").addEventListener("click", () => {
   if (!input.value.trim()) { statusEl.textContent = "Cole uma cifra antes de baixar."; return; }
   if (!window.docx) { statusEl.textContent = "Não foi possível carregar o gerador de Word. Verifique sua conexão."; return; }
-  fileNameInput.value = lastFileName;
-  filePreview.textContent = safeFileName(lastFileName);
+  const suggested = $("title").value.trim() || lastFileName; // usa o nome da música salva, se houver
+  fileNameInput.value = suggested;
+  filePreview.textContent = safeFileName(suggested);
   nameDialog.showModal();
   fileNameInput.select();
 });
@@ -446,6 +524,192 @@ $("nameForm").addEventListener("submit", async (e) => {
 input.value = EXAMPLE;
 detectKey();
 render();
+
+// ---------- 7. Registro de cifras (Supabase) ----------
+// A chave "anon" é pública por natureza: o acesso aos dados é protegido pelas
+// regras de segurança (RLS) do banco, que só liberam a tabela para quem está logado.
+const SUPABASE_URL = "https://szczcmaholhoqrpxowgi.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y3pjbWFob2xob3FycHhvd2dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5NzQ0NDcsImV4cCI6MjEwNzU1MDQ0N30.CWKt87_3CpVdi88-LG9WcmjhWTPnBOGbx3kfdwLGMw8";
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+const titleInput = $("title"), saveStatus = $("saveStatus"), saveBtn = $("save");
+const loginDialog = $("loginDialog"), loginError = $("loginError");
+const libDialog = $("libDialog"), libList = $("libList"), libSearch = $("libSearch");
+let currentId = null;     // id da cifra aberta (null = cifra nova, ainda não salva)
+let savedSnapshot = "";   // estado no último salvamento, para saber se há alterações
+let library = [];         // lista carregada para a janela "Cifras salvas"
+
+function currentRecord() {
+  return {
+    titulo: titleInput.value.trim(),
+    tom: rootSel.value,
+    modo: modeSel.value,
+    relativo: relativeChk.checked,
+    cifra: input.value,
+  };
+}
+
+function setSaveStatus(text, dirty = false) {
+  saveStatus.textContent = text;
+  saveStatus.classList.toggle("dirty", dirty);
+}
+
+function updateDirty() {
+  if (document.body.dataset.auth !== "in") return;
+  const dirty = JSON.stringify(currentRecord()) !== savedSnapshot;
+  if (currentId && dirty) setSaveStatus("Alterações não salvas", true);
+  else if (currentId) setSaveStatus("Salvo");
+  else setSaveStatus(input.value.trim() ? "Cifra nova, ainda não salva" : "");
+}
+
+function newSong() {
+  currentId = null;
+  titleInput.value = "";
+  input.value = "";
+  savedSnapshot = "";
+  render();
+  updateDirty();
+  titleInput.focus();
+}
+
+function setSession(session) {
+  document.body.dataset.auth = session ? "in" : "out";
+  if (!session) { currentId = null; savedSnapshot = ""; setSaveStatus(""); }
+  updateDirty();
+}
+
+async function saveSong() {
+  const record = currentRecord();
+  if (!record.titulo) { setSaveStatus("Dê um nome à música antes de salvar.", true); titleInput.focus(); return; }
+  if (!record.cifra.trim()) { setSaveStatus("Cole a cifra antes de salvar.", true); input.focus(); return; }
+  saveBtn.disabled = true;
+  setSaveStatus("Salvando...");
+  const query = currentId
+    ? sb.from("cifras").update(record).eq("id", currentId)
+    : sb.from("cifras").insert(record);
+  const { data, error } = await query.select("id").single();
+  saveBtn.disabled = false;
+  if (error) { console.error(error); setSaveStatus("Não foi possível salvar. Tente de novo.", true); return; }
+  currentId = data.id;
+  savedSnapshot = JSON.stringify(record);
+  const hora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  setSaveStatus("Salvo às " + hora);
+}
+
+async function openSong(id) {
+  const { data, error } = await sb.from("cifras").select("*").eq("id", id).single();
+  if (error) { console.error(error); renderLibrary("Não foi possível abrir essa cifra."); return; }
+  currentId = data.id;
+  titleInput.value = data.titulo;
+  input.value = data.cifra;
+  rootSel.value = data.tom;
+  modeSel.value = data.modo;
+  relativeChk.checked = data.relativo;
+  render();
+  savedSnapshot = JSON.stringify(currentRecord());
+  updateDirty();
+  libDialog.close();
+}
+
+async function deleteSong(id) {
+  const { error } = await sb.from("cifras").delete().eq("id", id);
+  if (error) { console.error(error); renderLibrary("Não foi possível excluir. Tente de novo."); return; }
+  library = library.filter((s) => s.id !== id);
+  if (id === currentId) { currentId = null; savedSnapshot = ""; updateDirty(); }
+  renderLibrary();
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function renderLibrary(message) {
+  const term = libSearch.value.trim().toLowerCase();
+  const items = library.filter((s) => s.titulo.toLowerCase().includes(term));
+  libList.replaceChildren();
+  if (message || !items.length) {
+    const li = document.createElement("li");
+    li.className = "lib-empty";
+    li.textContent = message || (library.length ? "Nenhuma música com esse nome." : "Nenhuma cifra salva ainda.");
+    libList.append(li);
+    if (message) return;
+  }
+  for (const s of items) {
+    const li = document.createElement("li");
+    const open = document.createElement("button");
+    open.className = "lib-open";
+    const name = document.createElement("strong");
+    name.textContent = s.titulo;
+    const meta = document.createElement("span");
+    meta.textContent = "Tom " + s.tom + (s.modo === "minor" ? "m" : "") + " · editada em " + formatDate(s.atualizado_em);
+    open.append(name, meta);
+    open.addEventListener("click", () => openSong(s.id));
+
+    const del = document.createElement("button");
+    del.className = "ghost danger";
+    del.textContent = "Excluir";
+    del.addEventListener("click", () => {
+      // Confirmação na própria linha, sem janela do navegador
+      if (del.dataset.confirm) { deleteSong(s.id); return; }
+      del.dataset.confirm = "1";
+      del.className = "danger";
+      del.textContent = "Confirmar exclusão";
+      setTimeout(() => { if (del.isConnected) { delete del.dataset.confirm; del.className = "ghost danger"; del.textContent = "Excluir"; } }, 4000);
+    });
+    li.append(open, del);
+    libList.append(li);
+  }
+}
+
+async function openLibrary() {
+  libSearch.value = "";
+  renderLibrary("Carregando...");
+  libDialog.showModal();
+  const { data, error } = await sb.from("cifras").select("id, titulo, tom, modo, atualizado_em").order("titulo");
+  if (error) { console.error(error); renderLibrary("Não foi possível carregar as cifras."); return; }
+  library = data;
+  renderLibrary();
+  libSearch.focus();
+}
+
+if (sb) {
+  $("account").hidden = false;
+  sb.auth.getSession().then(({ data }) => setSession(data.session));
+  sb.auth.onAuthStateChange((_event, session) => setSession(session));
+
+  $("loginOpen").addEventListener("click", () => { loginError.textContent = ""; loginDialog.showModal(); $("loginEmail").focus(); });
+  $("loginCancel").addEventListener("click", () => loginDialog.close());
+  $("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    $("loginSubmit").disabled = true;
+    loginError.textContent = "";
+    const { error } = await sb.auth.signInWithPassword({
+      email: $("loginEmail").value.trim(),
+      password: $("loginPassword").value,
+    });
+    $("loginSubmit").disabled = false;
+    if (error) { loginError.textContent = "E-mail ou senha incorretos."; return; }
+    $("loginPassword").value = "";
+    loginDialog.close();
+  });
+  $("logout").addEventListener("click", () => sb.auth.signOut());
+
+  $("save").addEventListener("click", saveSong);
+  $("newSong").addEventListener("click", newSong);
+  $("libOpen").addEventListener("click", openLibrary);
+  $("libClose").addEventListener("click", () => libDialog.close());
+  libSearch.addEventListener("input", () => renderLibrary());
+
+  [titleInput, input].forEach((el) => el.addEventListener("input", updateDirty));
+  [rootSel, modeSel, relativeChk].forEach((el) => el.addEventListener("change", updateDirty));
+  // Ctrl+S salva quando estiver logado
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && document.body.dataset.auth === "in") {
+      e.preventDefault();
+      saveSong();
+    }
+  });
+}
 </script>
 </body>
 </html>
