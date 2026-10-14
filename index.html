@@ -559,6 +559,8 @@ const PT_TO_MM = 0.3528;
 function buildPdf(title) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
+  // Título interno do PDF (com acentos): é o que os visualizadores mostram no topo
+  doc.setProperties({ title: title || "Cifra em graus", creator: "Conversor de cifra para graus" });
   const margin = 15, pageH = 297, usable = 210 - 2 * margin;
   let y = margin;
 
@@ -622,8 +624,15 @@ function downloadBlob(blob, filename) {
 
 // Nome do arquivo: tira caracteres que o Windows não aceita (\ / : * ? " < > |)
 // e usa "cifra-em-graus" quando o campo fica vazio.
+// O nome do arquivo vai sem acentos ("Coração" vira "Coracao"): ao compartilhar,
+// alguns apps e celulares estragam os acentos no nome. O título dentro do PDF mantém os acentos.
 function safeFileName(name) {
-  const clean = name.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim().replace(/\.pdf$/i, "");
+  const clean = name
+    .normalize("NFD").replace(/[̀-ͯ]/g, "") // tira acentos
+    .replace(/[–—]/g, "-")
+    .replace(/[^\x20-\x7E]/g, "")                       // tira o que não for ASCII
+    .replace(/[\\/:*?"<>|]+/g, "")
+    .replace(/\s+/g, " ").trim().replace(/\.pdf$/i, "");
   return (clean || "cifra-em-graus") + ".pdf";
 }
 
