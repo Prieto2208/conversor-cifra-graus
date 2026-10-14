@@ -100,13 +100,6 @@
         <option value="minor">Menor</option>
       </select>
     </div>
-    <div class="field">
-      <label for="format">Formato</label>
-      <select id="format">
-        <option value="paren">Parênteses: 1(7), 6m(9)</option>
-        <option value="joined">Junto: 17, 6m9</option>
-      </select>
-    </div>
     <label class="check"><input type="checkbox" id="relative" checked> Tom menor pelo relativo maior</label>
     <div class="ref" id="ref" aria-live="polite"></div>
   </section>
@@ -142,6 +135,12 @@ const ROOT_OPTIONS = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb"
 const MAJOR_DEGREES = ["1", "b2", "2", "b3", "3", "4", "#4", "5", "b6", "6", "b7", "7"];
 const MINOR_DEGREES = ["1", "b2", "2", "3", "#3", "4", "b5", "5", "6", "#6", "7", "#7"];
 
+// Qualidade esperada de cada grau no campo harmônico (distância em semitons -> qualidade).
+// Graus fora do campo não aparecem aqui: são sempre marcados (empréstimo modal).
+const MAJOR_FIELD = { 0: "M", 2: "m", 4: "m", 5: "M", 7: "M", 9: "m", 11: "dim" };
+const MINOR_FIELD = { 0: "m", 2: "dim", 3: "M", 5: "m", 7: "m", 8: "M", 10: "M" };
+const QUALITY_MARK = { M: "M", m: "m", dim: "°", aug: "+" };
+
 function noteToSemitone(letter, accidental) {
   let value = NOTE_VALUES[letter];
   if (accidental === "#") value += 1;
@@ -166,25 +165,26 @@ function parseChord(token) {
 }
 
 // ---------- 3. Converter um acorde em grau ----------
+// Qualidade básica do acorde, ignorando extensões (7, 9, 11...).
+// null = não define qualidade (sus, power chord "5"): nunca é marcado.
+function chordQuality(suffix) {
+  if (/^sus/.test(suffix) || suffix === "5") return null;
+  if (/dim|°|º/.test(suffix)) return "dim";
+  if (/^(m(?!aj)|min|-)/.test(suffix)) return /b5/.test(suffix) ? "dim" : "m"; // m7(b5) = meio-diminuto
+  if (/^(aug|\+)/.test(suffix)) return "aug";
+  return "M";
+}
+
+// Só o grau no campo harmônico. A qualidade (M, m, °, +) só aparece quando foge
+// do campo: acorde de empréstimo modal ou fora da escala, ex.: Fm em C = 4m, Bb em C = b7M.
+// Extensões são ignoradas (Dm7 = 2); o baixo invertido é mantido (G/B = 5/7).
 function chordToDegree(chord, settings) {
-  const { tonic, degrees, format } = settings;
-  const degree = degrees[(chord.root - tonic + 12) % 12];
-
-  // Separa o "m" de menor do resto (sem confundir com "maj")
-  let quality = "";
-  let rest = chord.suffix;
-  if (/^m(?!aj)/.test(rest) || rest.startsWith("min")) {
-    quality = "m";
-    rest = rest.replace(/^(min|m)/, "");
-  }
-
-  let extension = rest;
-  if (format === "paren" && rest) {
-    // "7(11)" vira "7,11" e depois "(7,11)"
-    extension = "(" + rest.replace(/\(/g, ",").replace(/\)/g, "").replace(/^,/, "") + ")";
-  }
-
-  let result = degree + quality + extension;
+  const { tonic, degrees, field } = settings;
+  const distance = (chord.root - tonic + 12) % 12;
+  const quality = chordQuality(chord.suffix);
+  const expected = field[distance];
+  const mark = quality && quality !== expected ? QUALITY_MARK[quality] : "";
+  let result = degrees[distance] + mark;
   if (chord.bass !== null) result += "/" + degrees[(chord.bass - tonic + 12) % 12];
   return result;
 }
@@ -256,7 +256,7 @@ function escapeHtml(s) {
 
 // ---------- 5. Interface ----------
 const $ = (id) => document.getElementById(id);
-const rootSel = $("root"), modeSel = $("mode"), formatSel = $("format"), relativeChk = $("relative");
+const rootSel = $("root"), modeSel = $("mode"), relativeChk = $("relative");
 const input = $("input"), output = $("output"), refEl = $("ref"), statusEl = $("status");
 
 ROOT_OPTIONS.forEach((n) => rootSel.add(new Option(n, n)));
@@ -276,6 +276,7 @@ function getSettings() {
   const rootName = rootSel.value;
   let tonic = noteToSemitone(rootName[0], rootName.slice(1));
   let degrees = MAJOR_DEGREES;
+  let field = MAJOR_FIELD;
   let refName = rootName + " maior";
 
   if (modeSel.value === "minor") {
@@ -284,10 +285,11 @@ function getSettings() {
       refName = ROOT_OPTIONS[tonic] + " maior (relativo de " + rootName + "m)";
     } else {
       degrees = MINOR_DEGREES;
+      field = MINOR_FIELD;
       refName = rootName + " menor";
     }
   }
-  return { tonic, degrees, format: formatSel.value, refName };
+  return { tonic, degrees, field, refName };
 }
 
 let lastText = "";
@@ -326,7 +328,7 @@ function detectKey() {
 }
 
 input.addEventListener("input", () => { detectKey(); render(); });
-[rootSel, modeSel, formatSel, relativeChk].forEach((el) => el.addEventListener("change", render));
+[rootSel, modeSel, relativeChk].forEach((el) => el.addEventListener("change", render));
 
 $("clear").addEventListener("click", () => { input.value = ""; render(); input.focus(); });
 

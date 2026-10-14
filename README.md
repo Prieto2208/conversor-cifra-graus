@@ -6,7 +6,8 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 
 - Detecta automaticamente o tom a partir de uma linha `Tom: Cm`
 - Tons maiores e menores, com opção de numerar o tom menor pelo relativo maior
-- Dois formatos: parênteses (`1(7)`, `6m(9)`) ou junto (`17`, `6m9`)
+- Mostra só o grau do acorde no campo harmônico: em C, `Am` vira `6`, `Dm7` vira `2` e o baixo invertido é mantido (`G/B` vira `5/7`)
+- Marca a qualidade só quando o acorde foge do campo (empréstimo modal ou acorde de outra escala): em C, `Fm` vira `4m`, `E7` vira `3M` e `Bb` vira `b7M`
 - Mantém os graus na mesma coluna dos acordes originais
 - Exporta o resultado para Word (.docx) ou copia para a área de transferência
 - Tudo roda no navegador: nenhum texto é enviado para servidor
