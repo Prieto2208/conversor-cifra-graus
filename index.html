@@ -109,7 +109,7 @@
 
   /* Registro de cifras (Supabase) */
   .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-  .account { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .account { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
 
   /* Tela de login: nada do site aparece antes de entrar */
   body:not([data-auth="in"]) main { display: none; }
@@ -168,7 +168,7 @@
   /* Celular: botões maiores e mais espaçados */
   @media (max-width: 600px) {
     main { padding: 20px 16px 40px; }
-    .topbar { flex-direction: column; gap: 12px; margin-bottom: 8px; }
+    .topbar { flex-direction: column; gap: 4px; }
     .account { width: 100%; gap: 12px; }
     .account button { flex: 1; padding: 10px 12px; }
     .songbar { gap: 10px; padding: 12px; }
