@@ -620,6 +620,10 @@ input.addEventListener("input", () => { detectKey(); render(); });
 let keyRoot = rootSel.value; // tom antes da troca
 rootSel.addEventListener("change", () => {
   const from = keyRoot, to = rootSel.value;
+  if (!transposeChk.checked && from !== to) {
+    // Só corrige o tom: a linha "Tom:" acompanha o seletor, os acordes ficam como estão
+    input.value = input.value.replace(TOM_LINE_RE, (_, label) => label + to);
+  }
   if (transposeChk.checked && from !== to) {
     input.value = transposeText(input.value, from, to, modeSel.value);
     if (manualGraus !== null) { // graus editados à mão: só a linha "Tom:" muda
