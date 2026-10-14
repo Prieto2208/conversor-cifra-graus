@@ -72,6 +72,14 @@
     white-space: pre; overflow: auto; resize: vertical; tab-size: 4;
   }
   .output .ch { color: var(--chord); font-weight: 600; }
+  #gradesEdit { border-color: var(--accent); }
+  .manual-note {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between;
+    font-size: 0.85rem; color: var(--muted); background: var(--surface);
+    border: 1px dashed var(--chord); border-radius: 8px; padding: 6px 10px;
+  }
+  .manual-note[hidden] { display: none; }
+  button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
   button {
     font: inherit; font-weight: 600; cursor: pointer; border-radius: 6px; padding: 6px 12px;
     border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
@@ -186,11 +194,17 @@
       <div class="pane-head">
         <h2>Em graus</h2>
         <div class="btns">
+          <button class="ghost" id="editGrades" aria-pressed="false">Editar</button>
           <button class="ghost" id="word">Baixar Word</button>
           <button id="copy">Copiar</button>
         </div>
       </div>
+      <div class="manual-note" id="manualNote" hidden>
+        <span>Graus editados à mão: mudanças na cifra original não alteram os graus.</span>
+        <button class="ghost" id="redoGrades">Refazer pela cifra</button>
+      </div>
       <div class="output" id="output" tabindex="0" aria-label="Cifra em graus"></div>
+      <textarea id="gradesEdit" spellcheck="false" aria-label="Editar cifra em graus" hidden></textarea>
     </div>
   </div>
 </main>
@@ -400,6 +414,28 @@ function getSettings() {
 
 let lastText = "";
 let lastLines = []; // [{ text, isChordLine }] usado para montar o Word
+let convertedText = ""; // graus gerados a partir da cifra original
+let manualGraus = null; // graus editados à mão (null = usar os gerados da cifra)
+let editing = false;
+
+const manualNote = $("manualNote"), gradesEdit = $("gradesEdit"), editBtn = $("editGrades");
+
+// Reconhece uma linha de graus digitada à mão (ex.: "6   4/6  b7M"), para colorir e
+// deixar em negrito no Word, como as linhas geradas automaticamente.
+const DEGREE_TOKEN_RE = /^\(*[b#]?[1-7](?:M|m|°|\+)?(?:\/[b#]?[1-7])?\)*$/;
+function isDegreeLine(line) {
+  const tokens = line.match(/\S+/g);
+  if (!tokens) return false;
+  let degrees = 0;
+  for (const t of tokens) {
+    if (DEGREE_TOKEN_RE.test(t)) degrees++;
+    else if (!LABEL_RE.test(t) && !PARENS_ONLY_RE.test(t)) return false;
+  }
+  return degrees > 0;
+}
+function highlightDegreeLine(line) {
+  return line.replace(/\S+/g, (t) => DEGREE_TOKEN_RE.test(t) ? `<span class="ch">${escapeHtml(t)}</span>` : escapeHtml(t));
+}
 
 function render() {
   const settings = getSettings();
@@ -408,21 +444,56 @@ function render() {
 
   const textLines = [];
   const htmlLines = [];
-  lastLines = [];
+  const lines = [];
   let chordLines = 0;
   for (const line of input.value.split("\n")) {
     const r = convertLine(line, settings);
     textLines.push(r.text);
-    lastLines.push({ text: r.text, isChordLine: r.isChordLine });
+    lines.push({ text: r.text, isChordLine: r.isChordLine });
     htmlLines.push(r.isChordLine ? r.html : escapeHtml(r.text));
     if (r.isChordLine) chordLines++;
   }
-  lastText = textLines.join("\n");
-  output.innerHTML = htmlLines.join("\n");
-  statusEl.textContent = input.value.trim()
+  convertedText = textLines.join("\n");
+
+  if (manualGraus !== null) {
+    lastText = manualGraus;
+    lastLines = manualGraus.split("\n").map((t) => ({ text: t, isChordLine: isDegreeLine(t) }));
+    output.innerHTML = lastLines.map((l) => l.isChordLine ? highlightDegreeLine(l.text) : escapeHtml(l.text)).join("\n");
+  } else {
+    lastText = convertedText;
+    lastLines = lines;
+    output.innerHTML = htmlLines.join("\n");
+    if (editing) gradesEdit.value = convertedText; // ainda sem edição manual: acompanha a cifra
+  }
+  manualNote.hidden = manualGraus === null;
+
+  if (manualGraus !== null) statusEl.textContent = "Graus editados à mão.";
+  else statusEl.textContent = input.value.trim()
     ? chordLines + (chordLines === 1 ? " linha de acordes convertida" : " linhas de acordes convertidas")
     : "Cole uma cifra para começar.";
 }
+
+function setEditing(on) {
+  editing = on;
+  gradesEdit.hidden = !on;
+  output.hidden = on;
+  editBtn.textContent = on ? "Concluir" : "Editar";
+  editBtn.setAttribute("aria-pressed", String(on));
+  if (on) { gradesEdit.value = lastText; gradesEdit.focus(); }
+}
+
+editBtn.addEventListener("click", () => setEditing(!editing));
+gradesEdit.addEventListener("input", () => {
+  // Se o texto voltar a ser igual ao gerado, deixa de ser "editado à mão"
+  manualGraus = gradesEdit.value === convertedText ? null : gradesEdit.value;
+  render();
+});
+$("redoGrades").addEventListener("click", () => {
+  manualGraus = null;
+  render();
+  if (editing) gradesEdit.value = convertedText;
+  gradesEdit.dispatchEvent(new Event("change"));
+});
 
 // Lê "Tom: Cm" do texto e ajusta os seletores sozinho
 function detectKey() {
@@ -436,7 +507,7 @@ function detectKey() {
 input.addEventListener("input", () => { detectKey(); render(); });
 [rootSel, modeSel, relativeChk].forEach((el) => el.addEventListener("change", render));
 
-$("clear").addEventListener("click", () => { input.value = ""; render(); input.focus(); });
+$("clear").addEventListener("click", () => { input.value = ""; manualGraus = null; setEditing(false); render(); input.focus(); });
 
 $("copy").addEventListener("click", async () => {
   try {
@@ -554,6 +625,7 @@ function currentRecord() {
     modo: modeSel.value,
     relativo: relativeChk.checked,
     cifra: input.value,
+    graus: manualGraus, // null quando os graus não foram editados à mão
   };
 }
 
@@ -574,6 +646,8 @@ function newSong() {
   currentId = null;
   titleInput.value = "";
   input.value = "";
+  manualGraus = null;
+  setEditing(false);
   savedSnapshot = "";
   render();
   updateDirty();
@@ -613,6 +687,8 @@ async function openSong(id) {
   rootSel.value = data.tom;
   modeSel.value = data.modo;
   relativeChk.checked = data.relativo;
+  manualGraus = data.graus ?? null;
+  setEditing(false);
   render();
   savedSnapshot = JSON.stringify(currentRecord());
   updateDirty();
@@ -708,8 +784,8 @@ if (sb) {
   $("libClose").addEventListener("click", () => libDialog.close());
   libSearch.addEventListener("input", () => renderLibrary());
 
-  [titleInput, input].forEach((el) => el.addEventListener("input", updateDirty));
-  [rootSel, modeSel, relativeChk].forEach((el) => el.addEventListener("change", updateDirty));
+  [titleInput, input, gradesEdit].forEach((el) => el.addEventListener("input", updateDirty));
+  [rootSel, modeSel, relativeChk, gradesEdit].forEach((el) => el.addEventListener("change", updateDirty));
   // Ctrl+S salva quando estiver logado
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s" && document.body.dataset.auth === "in") {
