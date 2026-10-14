@@ -109,9 +109,32 @@
 
   /* Registro de cifras (Supabase) */
   .topbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-  .account { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-  .account .who { font-size: 0.85rem; color: var(--muted); }
-  body[data-auth="out"] .only-in, body[data-auth="in"] .only-out, body:not([data-auth]) .only-in { display: none !important; }
+  .account { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* Tela de login: nada do site aparece antes de entrar */
+  body:not([data-auth="in"]) main { display: none; }
+  body[data-auth="in"] .login-screen { display: none; }
+  body:not([data-auth]) .login-card { visibility: hidden; } /* enquanto verifica se já há sessão */
+  .login-screen { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; }
+  .login-card {
+    width: min(380px, 100%); background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 24px;
+  }
+  .login-card h1 { font-size: 1.35rem; margin-bottom: 4px; }
+  .login-card .lead { margin-bottom: 20px; }
+  .login-card label { display: block; font-size: 0.85rem; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+  .login-card input {
+    width: 100%; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; margin-bottom: 14px;
+  }
+  .login-card .error { color: var(--chord); font-size: 0.85rem; min-height: 1.2em; margin: 0 0 12px; }
+  .login-card button[type="submit"] { width: 100%; padding: 10px 12px; }
+
+  /* Cifra salva aberta pela lista: mostra só a versão em graus */
+  body[data-view="saved"] .controls,
+  body[data-view="saved"] .pane-original,
+  body[data-view="saved"] .manual-note { display: none; }
+  body[data-view="saved"] .panes { grid-template-columns: 1fr; }
   .songbar {
     display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center;
     background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
@@ -123,11 +146,10 @@
   }
   .songbar .status { min-height: 0; }
   .songbar .status.dirty { color: var(--chord); }
-  dialog input[type="text"]#loginEmail, dialog input[type="password"], dialog input[type="search"] {
+  dialog input[type="search"] {
     width: 100%; font: inherit; color: var(--ink); background: var(--bg);
     border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 10px;
   }
-  dialog .error { color: var(--chord); font-size: 0.85rem; min-height: 1.2em; margin: 0 0 10px; }
   #libDialog { width: min(640px, calc(100% - 32px)); }
   .lib-list { list-style: none; margin: 0 0 16px; padding: 0; max-height: 55vh; overflow: auto; border-top: 1px solid var(--line); }
   .lib-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -142,23 +164,51 @@
   button.danger { border-color: var(--chord); background: var(--chord); color: var(--accent-ink); }
   button.ghost.danger { background: transparent; color: var(--chord); }
   button:disabled { opacity: 0.6; cursor: default; }
+
+  /* Celular: botões maiores e mais espaçados */
+  @media (max-width: 600px) {
+    main { padding: 20px 16px 40px; }
+    .topbar { flex-direction: column; gap: 12px; margin-bottom: 8px; }
+    .account { width: 100%; gap: 12px; }
+    .account button { flex: 1; padding: 10px 12px; }
+    .songbar { gap: 10px; padding: 12px; }
+    .songbar input { flex-basis: 100%; padding: 10px 12px; }
+    .songbar button { flex: 1; padding: 10px 12px; }
+    .songbar .status { flex-basis: 100%; }
+    .pane-head { flex-wrap: wrap; gap: 10px; }
+    .pane-head .btns { flex-wrap: wrap; gap: 8px; }
+    .pane-head .btns button { padding: 8px 12px; }
+    .lib-list li { gap: 10px; }
+  }
 </style>
 </head>
 <body>
+<section class="login-screen" aria-labelledby="loginTitle">
+  <form class="login-card" id="loginForm">
+    <h1 id="loginTitle">Conversor de cifra para graus</h1>
+    <p class="lead">Entre para usar o conversor e as cifras salvas.</p>
+    <label for="loginEmail">Usuário</label>
+    <input type="text" id="loginEmail" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="loginPassword">Senha</label>
+    <input type="password" id="loginPassword" autocomplete="current-password" required>
+    <p class="error" id="loginError" role="alert"></p>
+    <button type="submit" id="loginSubmit">Entrar</button>
+  </form>
+</section>
+
 <main>
   <div class="topbar">
     <div>
       <h1>Conversor de cifra para graus</h1>
       <p class="lead">Cole a cifra à esquerda. As linhas de acordes são convertidas em graus e a letra fica como está, na mesma posição.</p>
     </div>
-    <div class="account" id="account" hidden>
-      <button class="ghost only-out" id="loginOpen">Entrar</button>
-      <button class="only-in" id="libOpen">Cifras salvas</button>
-      <button class="ghost only-in" id="logout">Sair</button>
+    <div class="account">
+      <button id="libOpen">Cifras salvas</button>
+      <button class="ghost" id="logout">Sair</button>
     </div>
   </div>
 
-  <section class="songbar only-in" aria-label="Música">
+  <section class="songbar" aria-label="Música">
     <input type="text" id="title" placeholder="Nome da música" maxlength="200" aria-label="Nome da música">
     <button class="ghost" id="newSong">Nova</button>
     <button id="save">Salvar</button>
@@ -182,7 +232,7 @@
   </section>
 
   <div class="panes">
-    <div class="pane">
+    <div class="pane pane-original">
       <div class="pane-head">
         <h2>Cifra original</h2>
         <button class="ghost" id="clear">Limpar</button>
@@ -218,21 +268,6 @@
     <div class="btns">
       <button type="button" class="ghost" id="nameCancel">Cancelar</button>
       <button type="submit">Baixar</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="loginDialog" aria-labelledby="loginTitle">
-  <form id="loginForm">
-    <h2 id="loginTitle">Entrar</h2>
-    <label for="loginEmail">Usuário</label>
-    <input type="text" id="loginEmail" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-    <label for="loginPassword">Senha</label>
-    <input type="password" id="loginPassword" autocomplete="current-password" required>
-    <p class="error" id="loginError" role="alert"></p>
-    <div class="btns">
-      <button type="button" class="ghost" id="loginCancel">Cancelar</button>
-      <button type="submit" id="loginSubmit">Entrar</button>
     </div>
   </form>
 </dialog>
@@ -612,7 +647,7 @@ function loginToEmail(login) {
 }
 
 const titleInput = $("title"), saveStatus = $("saveStatus"), saveBtn = $("save");
-const loginDialog = $("loginDialog"), loginError = $("loginError");
+const loginError = $("loginError");
 const libDialog = $("libDialog"), libList = $("libList"), libSearch = $("libSearch");
 let currentId = null;     // id da cifra aberta (null = cifra nova, ainda não salva)
 let savedSnapshot = "";   // estado no último salvamento, para saber se há alterações
@@ -644,6 +679,7 @@ function updateDirty() {
 
 function newSong() {
   currentId = null;
+  delete document.body.dataset.view;
   titleInput.value = "";
   input.value = "";
   manualGraus = null;
@@ -655,8 +691,22 @@ function newSong() {
 }
 
 function setSession(session) {
+  const wasIn = document.body.dataset.auth === "in";
   document.body.dataset.auth = session ? "in" : "out";
-  if (!session) { currentId = null; savedSnapshot = ""; setSaveStatus(""); }
+  if (!session && wasIn) {
+    // Ao sair, limpa a tela para não deixar nenhuma cifra visível
+    currentId = null;
+    savedSnapshot = "";
+    delete document.body.dataset.view;
+    titleInput.value = "";
+    input.value = EXAMPLE;
+    manualGraus = null;
+    setEditing(false);
+    detectKey();
+    render();
+    libDialog.close();
+    setSaveStatus("");
+  }
   updateDirty();
 }
 
@@ -689,6 +739,7 @@ async function openSong(id) {
   relativeChk.checked = data.relativo;
   manualGraus = data.graus ?? null;
   setEditing(false);
+  document.body.dataset.view = "saved"; // cifra salva: mostra só a versão em graus
   render();
   savedSnapshot = JSON.stringify(currentRecord());
   updateDirty();
@@ -756,13 +807,17 @@ async function openLibrary() {
   libSearch.focus();
 }
 
+if (!sb) {
+  // Sem a biblioteca do Supabase não há como entrar: mostra o aviso na tela de login
+  document.body.dataset.auth = "out";
+  loginError.textContent = "Não foi possível carregar o login. Verifique sua conexão e recarregue a página.";
+  $("loginSubmit").disabled = true;
+}
+
 if (sb) {
-  $("account").hidden = false;
   sb.auth.getSession().then(({ data }) => setSession(data.session));
   sb.auth.onAuthStateChange((_event, session) => setSession(session));
 
-  $("loginOpen").addEventListener("click", () => { loginError.textContent = ""; loginDialog.showModal(); $("loginEmail").focus(); });
-  $("loginCancel").addEventListener("click", () => loginDialog.close());
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("loginSubmit").disabled = true;
@@ -774,7 +829,6 @@ if (sb) {
     $("loginSubmit").disabled = false;
     if (error) { loginError.textContent = "Usuário ou senha incorretos."; return; }
     $("loginPassword").value = "";
-    loginDialog.close();
   });
   $("logout").addEventListener("click", () => sb.auth.signOut());
 
