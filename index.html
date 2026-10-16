@@ -722,13 +722,19 @@ function downloadBlob(blob, filename) {
 // e usa "cifra-em-graus" quando o campo fica vazio.
 // O nome do arquivo vai sem acentos ("Coração" vira "Coracao"): ao compartilhar,
 // alguns apps e celulares estragam os acentos no nome. O título dentro do PDF mantém os acentos.
+// Pelo mesmo motivo, "&" e "+" (que o celular/WhatsApp costuma apagar) viram "e" e "mais",
+// e "/ \ : |" viram hífen em vez de sumir.
 function safeFileName(name) {
   const clean = name
     .normalize("NFD").replace(/[̀-ͯ]/g, "") // tira acentos
     .replace(/[–—]/g, "-")
+    .replace(/&/g, " e ")
+    .replace(/\+/g, " mais ")
+    .replace(/\s+[\\/:|]+\s*|\s*[\\/:|]+\s+/g, " - ")    // "Hino: Santo" -> "Hino - Santo"
+    .replace(/[\\/:|]+/g, "-")                          // "10/10" -> "10-10"
     .replace(/[^\x20-\x7E]/g, "")                       // tira o que não for ASCII
-    .replace(/[\\/:*?"<>|]+/g, "")
-    .replace(/\s+/g, " ").trim().replace(/\.pdf$/i, "");
+    .replace(/[*?"<>]+/g, "")
+    .replace(/\s+/g, " ").replace(/-{2,}/g, "-").trim().replace(/^-+|-+$/g, "").replace(/\.pdf$/i, "").trim();
   return (clean || "cifra-em-graus") + ".pdf";
 }
 
