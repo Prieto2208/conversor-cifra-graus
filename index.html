@@ -521,7 +521,9 @@
         </div>
         <label class="check"><input type="checkbox" id="modClick" checked> Metrônomo</label>
         <label class="check"><input type="checkbox" id="modPad" checked> Pad do tom</label>
-        <label class="check"><input type="checkbox" id="modPiano" checked> Piano no 1º tempo</label>
+        <label class="check"><input type="checkbox" id="modKeys" checked> Teclado</label>
+        <label class="check"><input type="checkbox" id="modGuitar" checked> Guitarra</label>
+        <label class="check"><input type="checkbox" id="modBass" checked> Baixo</label>
       </div>
       <div class="practice-status" id="practiceStatus" hidden>
         <div class="beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
@@ -1563,6 +1565,108 @@ function synthClick(ctx, time, accent, dest) {
   osc.start(time);
   osc.stop(time + 0.06);
 }
+
+// ---------- Banda do "Tocar no tempo": guitarra e baixo ----------
+// Guitarra: corda dedilhada (Karplus-Strong). Um ruído curto circula num atraso do tamanho de
+// um período da nota e vai sendo suavizado, como uma corda que vibra e perde o brilho.
+const pluckCache = new WeakMap(); // por contexto de áudio: buffer de cada nota
+function pluckBuffer(ctx, midi) {
+  if (!pluckCache.has(ctx)) pluckCache.set(ctx, new Map());
+  const cache = pluckCache.get(ctx);
+  if (cache.has(midi)) return cache.get(midi);
+  const sr = ctx.sampleRate;
+  const freq = 440 * 2 ** ((midi - 69) / 12);
+  const n = Math.max(2, Math.round(sr / freq - 0.5)); // o filtro de média atrasa meia amostra
+  const len = Math.round(sr * 3);
+  const buf = ctx.createBuffer(1, len, sr);
+  const y = buf.getChannelData(0);
+  let prev = 0;
+  for (let i = 0; i < n; i++) { prev = 0.5 * prev + 0.5 * (Math.random() * 2 - 1); y[i] = prev; } // ataque menos áspero
+  const decay = midi < 52 ? 0.997 : 0.995;
+  for (let i = n; i < len; i++) y[i] = decay * 0.5 * (y[i - n] + y[i - n - 1 < 0 ? 0 : i - n - 1]);
+  // O atraso inteiro desafina um pouco: a velocidade de leitura corrige para a nota exata
+  const entry = { buf, rate: (freq * (n + 0.5)) / sr };
+  cache.set(midi, entry);
+  return entry;
+}
+
+// Acorde na pestana em forma de Mi (fundamental na 6ª corda, entre Mi2 e Ré#3):
+// fundamental, quinta, oitava (ou sétima), terça, quinta e oitava
+function guitarMidis(name) {
+  const m = name.match(/^([A-G])([#b]?)(m|°)?(7)?$/);
+  const root = 40 + ((noteToSemitone(m[1], m[2]) - 4 + 12) % 12);
+  const third = m[3] ? 3 : 4, fifth = m[3] === "°" ? 6 : 7;
+  return [0, fifth, m[4] ? 10 : 12, 12 + third, 12 + fifth, 24].map((x) => root + x);
+}
+
+// Uma batida: cordas em sequência (para baixo: grave -> agudo; para cima: só as 4 agudas,
+// agudo -> grave e mais fraca). A corda soa até a próxima batida, que a abafa.
+function strumGuitar(ctx, midis, time, until, down, dest) {
+  const strings = down ? midis : midis.slice(2).reverse();
+  const level = down ? 0.16 : 0.1;
+  strings.forEach((midi, i) => {
+    const { buf, rate } = pluckBuffer(ctx, midi);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = ctx.createGain();
+    const at = time + i * (down ? 0.011 : 0.008);
+    g.gain.setValueAtTime(level, at);
+    g.gain.setValueAtTime(level, until);
+    g.gain.linearRampToValueAtTime(0, until + 0.04);
+    src.connect(g);
+    g.connect(dest);
+    src.start(at);
+    src.stop(until + 0.05);
+  });
+}
+
+// Corpo do violão/guitarra: realça os médios-graves e tira o chiado do agudo
+function guitarBus(ctx, dest) {
+  const body = ctx.createBiquadFilter();
+  body.type = "peaking"; body.frequency.value = 220; body.Q.value = 1; body.gain.value = 4;
+  const tone = ctx.createBiquadFilter();
+  tone.type = "lowpass"; tone.frequency.value = 3800; tone.Q.value = 0.4;
+  body.connect(tone);
+  tone.connect(dest);
+  return body;
+}
+
+// Baixo: triângulo + um pouco de dente de serra (para aparecer em caixinhas de som pequenas),
+// filtro que fecha depois do ataque e envelope de nota pinçada
+function synthBass(ctx, midi, start, dur, dest) {
+  const freq = 440 * 2 ** ((midi - 69) / 12);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.Q.value = 0.7;
+  filter.frequency.setValueAtTime(1100, start);
+  filter.frequency.exponentialRampToValueAtTime(420, start + 0.35);
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, start);
+  env.gain.exponentialRampToValueAtTime(0.13, start + 0.012);
+  env.gain.exponentialRampToValueAtTime(0.085, start + 0.4);
+  env.gain.setValueAtTime(0.085, start + Math.max(0.41, dur - 0.06));
+  env.gain.exponentialRampToValueAtTime(0.0001, start + Math.max(0.41, dur - 0.06) + 0.08);
+  filter.connect(env);
+  env.connect(dest);
+  for (const [type, amp] of [["triangle", 1], ["sawtooth", 0.25]]) {
+    const osc = ctx.createOscillator();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.value = amp;
+    osc.connect(g);
+    g.connect(filter);
+    osc.start(start);
+    osc.stop(start + dur + 0.1);
+  }
+}
+// Fundamental do acorde no registro do baixo (entre Mi1 e Ré#2)
+const bassRoot = (name) => {
+  const m = name.match(/^([A-G])([#b]?)/);
+  return 28 + ((noteToSemitone(m[1], m[2]) - 4 + 12) % 12);
+};
+
 function playMidis(midis, opts = {}) {
   const ctx = audio();
   if (ctx) renderNotes(ctx, midis, opts);
@@ -1843,7 +1947,7 @@ function startPractice(path, card, plan) {
   }));
   const totalBars = 1 + segments.reduce((s, x) => s + x.bars, 0); // + 1 de contagem
 
-  // Saídas próprias: o pad e o piano passam pela reverberação; o clique sai direto
+  // Saídas próprias: a banda e o pad passam pela reverberação; o clique sai direto
   const { input } = synthFor(ctx);
   const music = ctx.createGain(); music.connect(input);
   const clickBus = ctx.createGain(); clickBus.connect(ctx.destination);
@@ -1855,15 +1959,48 @@ function startPractice(path, card, plan) {
     }
   }
   let t = t0 + bar; // depois da contagem
+  const bars = []; // cada compasso com o seu acorde (o baixo precisa saber o próximo)
   for (const seg of segments) {
-    const midis = chordMidis(seg.chord);
-    if ($("modPiano").checked) {
-      for (let b = 0; b < seg.bars; b++) renderNotes(ctx, midis, { startAt: t + b * bar, strum: 0.02, dur: Math.min(bar, 3), dest: music, gain: 0.8 });
-    }
     seg.start = t;
+    for (let b = 0; b < seg.bars; b++) bars.push({ chord: seg.chord, start: t + b * bar });
     t += seg.bars * bar;
   }
   const end = t;
+
+  // Banda: teclado no 1 e no 3, guitarra em batida de balada e baixo levando ao próximo acorde
+  const keys = $("modKeys").checked, guitar = $("modGuitar").checked, bass = $("modBass").checked;
+  const gtr = guitar ? guitarBus(ctx, music) : null;
+  // Batida em colcheias: baixo no 1 e no 2, cima no 2e e no 3e, baixo no 4 e cima no 4e
+  const STRUM = [[0, true], [1, true], [1.5, false], [2.5, false], [3, true], [3.5, false]];
+  bars.forEach((b, i) => {
+    const next = bars[i + 1];
+    const last = !next;
+    if (keys) {
+      const voices = chordMidis(b.chord).slice(1); // sem o baixo: quem faz o baixo é o baixo
+      renderNotes(ctx, voices, { startAt: b.start, strum: 0.015, dur: last ? bar : 2 * beat, dest: music, gain: 0.45 });
+      if (!last) renderNotes(ctx, voices, { startAt: b.start + 2 * beat, strum: 0.015, dur: 2 * beat, dest: music, gain: 0.3 });
+    }
+    if (guitar) {
+      const shape = guitarMidis(b.chord);
+      if (last) strumGuitar(ctx, shape, b.start, b.start + bar + 1.5, true, gtr); // final: deixa soar
+      else STRUM.forEach(([at, down], k) => {
+        const until = k + 1 < STRUM.length ? STRUM[k + 1][0] : 4;
+        strumGuitar(ctx, shape, b.start + at * beat, b.start + until * beat, down, gtr);
+      });
+    }
+    if (bass) {
+      const root = bassRoot(b.chord);
+      if (last) synthBass(ctx, root, b.start, bar, music);
+      else {
+        synthBass(ctx, root, b.start, 2 * beat, music);
+        synthBass(ctx, root, b.start + 2 * beat, beat, music);
+        // 4º tempo: se o acorde muda, uma nota cromática "puxa" para a fundamental do próximo
+        const target = bassRoot(next.chord);
+        const approach = next.chord === b.chord ? root + 7 : target + (target > root ? -1 : 1);
+        synthBass(ctx, approach, b.start + 3 * beat, beat, music);
+      }
+    }
+  });
   // Pad do tom: segura o tom da música atual (desde a contagem, como se ela estivesse tocando)
   // e passa para o tom novo num fade longo (cerca de 1 compasso) centrado no começo da próxima
   const newSongAt = segments[segments.length - 1].start;
