@@ -22,7 +22,11 @@ Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, 
 ## Treino
 
 - Perguntas: grau de uma nota, nota de um grau, acordes do campo e de fora do campo, com placar.
-- Ouvido: o site toca o 1 do tom e depois um acorde (ou nota) do campo; você responde o grau.
+- Ouvido (o site toca o 1 do tom como referência):
+  - Grau do acorde / grau da nota: você responde o grau que ouviu.
+  - Sobe ou desce: duas notas; você diz se a segunda subiu, desceu ou repetiu, e vê de qual grau para qual foi.
+  - Ditado de melodia: 3 notas andando quase sempre de grau em grau; você responde os graus em ordem e vê o desenho (ex.: 3 ↑ 4 ↓ 2).
+  - Próximo acorde: toca o começo de uma progressão comum (1-5-6-4, 2-5-1, 6-4-1-5...) e você adivinha o próximo acorde.
 
 ## Como usar
 
