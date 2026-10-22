@@ -194,6 +194,10 @@
   .key-detail { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 0.9rem; color: var(--muted); }
   .key-detail b { color: var(--ink); font-family: "IBM Plex Mono", monospace; }
   .input-field select { width: 100%; }
+  .level { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.8rem; color: var(--muted); }
+  .level-bar { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .level-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.15s; }
+  .level-bar i.low { background: var(--chord); }
   .key-tip { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); }
   .key-history { text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 0.9rem; color: var(--muted); min-height: 1.4em; overflow-wrap: anywhere; }
   .key-history b { color: var(--ink); font-weight: 600; }
@@ -319,6 +323,7 @@
       <div class="field input-field">
         <label for="audioInput">Entrada de áudio</label>
         <select id="audioInput"><option value="">Microfone padrão</option></select>
+        <div class="level" aria-label="Nível de entrada"><span>Nível</span><div class="level-bar"><i id="inputLevel"></i></div></div>
         <p class="key-tip">Com a banda toda tocando, o melhor resultado vem ligando o aparelho na mesa de som (saída auxiliar, com um adaptador ou interface de áudio) ou num canal só do violão/teclado. No microfone, fique perto do instrumento harmônico.</p>
       </div>
 
@@ -624,18 +629,25 @@ function estimateTuning(current, deviations) {
   return Math.max(-50, Math.min(50, current + 0.15 * median));
 }
 
-// Espectro (magnitudes por faixa de frequência) -> quanto cada uma das 12 notas soou agora,
-// sem importar a oitava: o mesmo acorde grave, agudo, aberto ou fechado dá o mesmo resultado.
-//  - chroma: notas da harmonia (faixa do violão/teclado, ~90 a 1600 Hz)
-//  - bassChroma / bass: notas da região do baixo (~40 a 200 Hz)
-//  - deviations: quanto cada pico está fora da nota (cents), para acompanhar a afinação
+// Espectro (magnitudes por faixa de frequência) -> quais notas estão soando agora.
+// Usa "soma de harmônicos": cada nota de um instrumento soa a fundamental e vários harmônicos
+// (2x, 3x, 4x... a frequência). Para cada nota possível, soma os harmônicos que ela deveria ter;
+// a que melhor explica o som vence, os harmônicos dela são descontados, e repete para achar
+// as outras notas do acorde. Assim a nota certa aparece mesmo quando a fundamental é fraca
+// (microfone de celular capta mal os graves, e um Dó grave parecia Sol ou Mi).
+//  - notes: notas encontradas (com oitava), da mais forte para a mais fraca
+//  - chroma: quanto cada uma das 12 notas soou (sem importar a oitava)
+//  - bassChroma / bass: notas graves (região do baixo e das cordas graves)
+//  - deviations: quanto os picos estão fora da nota (cents), para acompanhar a afinação
+const MAX_NOTES = 6;
 function analyzeSpectrum(mags, binHz, tuning = 0) {
   const chroma = new Array(12).fill(0), bassChroma = new Array(12).fill(0), deviations = [];
+  const empty = { chroma, bassChroma, bass: null, deviations, notes: [] };
   const len = mags.length;
-  const from = Math.max(2, Math.floor(40 / binHz)), to = Math.min(len - 2, Math.ceil(1600 / binHz));
+  const from = Math.max(2, Math.floor(38 / binHz)), to = Math.min(len - 2, Math.ceil(4200 / binHz));
   let top = 0;
   for (let i = from; i <= to; i++) if (mags[i] > top) top = mags[i];
-  if (!top) return { chroma, bassChroma, bass: null, deviations };
+  if (!top) return empty;
 
   // "Chão" de ruído ao redor de cada faixa (média móvel): o pico precisa se destacar dele.
   // Ruído espalhado (prato, ambiente) levanta o chão e deixa de virar nota.
@@ -647,44 +659,77 @@ function analyzeSpectrum(mags, binHz, tuning = 0) {
     return (prefix[b] - prefix[a]) / (b - a);
   };
 
-  // 1. Picos que caem perto de uma nota (já compensando a afinação da banda)
+  // 1. Picos do espectro (já compensando a afinação da banda), em ordem de altura
   const peaks = [];
   for (let i = from; i <= to; i++) {
     const m = mags[i];
-    if (m < top * 0.01 || m <= mags[i - 1] || m < mags[i + 1] || m < floorAt(i) * 3) continue;
+    if (m < top * 0.005 || m <= mags[i - 1] || m < mags[i + 1] || m < floorAt(i) * 2.5) continue;
     const a = mags[i - 1], c = mags[i + 1];
     const offset = 0.5 * (a - c) / (a - 2 * m + c || 1); // interpolação: frequência exata do pico
     const freq = (i + offset) * binHz;
     const midi = 69 + 12 * Math.log2(freq / 440) - tuning / 100;
+    peaks.push({ midi, amp: Math.sqrt(m) }); // raiz: uma nota muito alta não apaga as outras
     const dev = midi - Math.round(midi);
-    if (Math.abs(dev) > 0.4) continue;
-    peaks.push({ freq, mag: m, pc: ((Math.round(midi) % 12) + 12) % 12, dev });
+    if (freq >= 100 && freq <= 1200 && m > top * 0.05 && Math.abs(dev) < 0.45) deviations.push(dev * 100);
   }
+  if (!peaks.length) return empty;
+  const mids = peaks.map((p) => p.midi), resid = peaks.map((p) => p.amp);
 
-  // 2. Harmônicos: cada corda também soa "notas fantasmas" (3x, 5x, 7x a frequência) que
-  //    confundem o acorde (ex.: o 5º harmônico do Lá soa um Dó#, que faz Am parecer A).
-  //    Pico que é harmônico de outro mais forte abaixo dele perde peso.
-  for (const p of peaks) {
-    for (const q of peaks) {
-      if (q.freq >= p.freq || q.mag < p.mag * 0.5) continue;
-      const n = p.freq / q.freq, k = Math.round(n);
-      if ([3, 5, 6, 7, 9, 10].includes(k) && Math.abs(n - k) / k < 0.025) { p.mag *= 0.25; break; }
+  // Pico mais forte a menos de ~1/3 de semitom de uma altura (busca binária)
+  const partialAt = (m) => {
+    let lo = 0, hi = mids.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (mids[mid] < m - 0.35) lo = mid + 1; else hi = mid; }
+    let best = -1;
+    for (let j = lo; j < mids.length && mids[j] <= m + 0.35; j++) if (best < 0 || resid[j] > resid[best]) best = j;
+    return best;
+  };
+  const maxMidi = 69 + 12 * Math.log2(4200 / 440);
+
+  // 2. Soma de harmônicos, nota a nota (Mi1 a Dó6)
+  const notes = [];
+  let firstSalience = 0;
+  for (let iter = 0; iter < MAX_NOTES; iter++) {
+    let best = null;
+    for (let m0 = 28; m0 <= 84; m0++) {
+      let sal = 0, h1 = 0, h2 = 0, h3 = 0;
+      for (let h = 1; h <= 10; h++) {
+        const mh = m0 + 12 * Math.log2(h);
+        if (mh > maxMidi) break;
+        const j = partialAt(mh);
+        if (j < 0) continue;
+        const a = resid[j];
+        sal += a / h ** 0.6;
+        if (h === 1) h1 = a; else if (h === 2) h2 = a; else if (h === 3) h3 = a;
+      }
+      // Precisa da fundamental, ou ao menos do 2º e do 3º harmônico (fundamental fraca)
+      if (!(h1 > 0 || (h2 > 0 && h3 > 0))) continue;
+      if (!h1) sal *= 0.6; // sem fundamental: pode ser só uma oitava abaixo da nota real
+      if (!best || sal > best.sal) best = { m0, sal };
+    }
+    if (!best || best.sal <= 0) break;
+    if (!iter) firstSalience = best.sal;
+    else if (best.sal < firstSalience * 0.22) break; // o que sobrou é fraco demais para ser nota
+    notes.push({ midi: best.m0, pc: best.m0 % 12, strength: best.sal });
+    // Desconta os harmônicos dessa nota (sobra um pouco: outras notas podem dividir o mesmo harmônico)
+    for (let h = 1; h <= 10; h++) {
+      const mh = best.m0 + 12 * Math.log2(h);
+      if (mh > maxMidi) break;
+      const j = partialAt(mh);
+      if (j >= 0) resid[j] *= 0.2;
     }
   }
 
-  // 3. Soma por nota (raiz quadrada: uma nota muito alta não apaga as outras), separando baixo e harmonia
-  for (const p of peaks) {
-    const w = Math.sqrt(p.mag);
-    if (p.freq < 200) bassChroma[p.pc] += w;
-    if (p.freq >= 90) chroma[p.pc] += w;
-    if (p.freq >= 100 && p.freq <= 1200 && p.mag > top * 0.05) deviations.push(p.dev * 100);
+  // 3. Notas -> 12 notas (sem oitava); as graves também contam para o baixo
+  for (const n of notes) {
+    chroma[n.pc] += n.strength;
+    if (n.midi <= 52) bassChroma[n.pc] += n.strength; // até Mi3: baixo e cordas graves
   }
 
-  // 4. Baixo: a nota que mais soa na região grave, se ela for clara
+  // 4. Baixo: a nota grave mais forte, se ela for clara
   const bassMax = Math.max(...bassChroma);
   const bassSum = bassChroma.reduce((x, y) => x + y, 0);
   const bass = bassMax > 0 && bassMax >= bassSum * 0.4 ? bassChroma.indexOf(bassMax) : null;
-  return { chroma, bassChroma, bass, deviations };
+  return { chroma, bassChroma, bass, deviations, notes };
 }
 
 // Modelos de acorde: intervalos a partir da fundamental e o peso de cada nota
@@ -1206,11 +1251,11 @@ function updateKeyDisplay() {
     const b = noteDisplay(listen.bassNow, key);
     bassNowEl.textContent = b.name + (b.degree ? " (" + b.degree + ")" : "");
   } else bassNowEl.textContent = "—";
-  const peak = Math.max(...listen.recent);
-  const sounding = peak > 0
-    ? listen.recent.map((v, i) => [v, i]).filter(([v]) => v >= peak * 0.35).sort((a, b) => b[0] - a[0]).slice(0, 5)
-    : [];
-  notesNowEl.textContent = sounding.length ? sounding.map(([, i]) => noteDisplay(i, key).name).join(" ") : "—";
+  // Notas encontradas agora, com oitava, do grave para o agudo (ex.: E2 B2 E3 G#3)
+  const sounding = [...(listen.notesNow || [])].sort((a, b) => a.midi - b.midi);
+  notesNowEl.textContent = sounding.length
+    ? sounding.map((n) => noteDisplay(n.pc, key).name + (Math.floor(n.midi / 12) - 1)).join(" ")
+    : "—";
   const cents = Math.round(listen.tuning);
   tuningNowEl.textContent = listen.frames ? (Math.abs(cents) < 5 ? "A=440 (padrão)" : (cents > 0 ? "+" : "") + cents + " cents") : "—";
 
@@ -1228,18 +1273,39 @@ function updateKeyDisplay() {
   });
 }
 
+// Barra de nível de entrada (-70 a -10 dB) e aviso quando o som chega baixo demais por uns segundos
+const inputLevelEl = $("inputLevel");
+function showInputLevel(rms) {
+  const db = 20 * Math.log10(rms || 1e-9);
+  const pct = Math.max(0, Math.min(100, ((db + 70) / 60) * 100));
+  inputLevelEl.style.width = pct + "%";
+  const low = db < -55;
+  inputLevelEl.classList.toggle("low", low);
+  if (low) {
+    listen.lowSince = listen.lowSince || Date.now();
+    if (Date.now() - listen.lowSince > 3000) {
+      listenStatus.textContent = "O som está chegando muito baixo. Aproxime o aparelho do instrumento ou escolha outra entrada de áudio.";
+    }
+  } else listen.lowSince = null;
+}
+
 function analyseFrame() {
   const { analyser, ctx } = listen;
   const time = new Float32Array(analyser.fftSize);
   analyser.getFloatTimeDomainData(time);
   const rms = Math.sqrt(time.reduce((s, x) => s + x * x, 0) / time.length);
-  if (rms < 0.005) { // silêncio: não conta
+  showInputLevel(rms);
+  // "Silêncio" se adapta ao ambiente: acompanha o ruído de fundo (sobe devagar, desce rápido).
+  // Um limite fixo fazia o celular, cujo microfone entrega sinal fraco, parecer sempre em silêncio.
+  listen.noiseFloor = rms < listen.noiseFloor ? rms * 0.5 + listen.noiseFloor * 0.5 : listen.noiseFloor * 1.003;
+  if (rms < Math.max(0.0004, listen.noiseFloor * 2.5)) { // silêncio: não conta
     listen.recent.fill(0);
     listen.recentBass.fill(0);
     listen.chordNow = null;
     listen.bassNow = null;
     listen.pending = null;
     listen.specHist = [];
+    listen.notesNow = [];
     listenStatus.textContent = "Silêncio... toque ou aproxime o som do microfone.";
     updateKeyDisplay();
     return;
@@ -1255,6 +1321,7 @@ function analyseFrame() {
   const spectrum = listen.specHist.length >= 3 ? medianSpectrum(listen.specHist) : mags;
   const res = analyzeSpectrum(spectrum, ctx.sampleRate / analyser.fftSize, listen.tuning);
   listen.tuning = estimateTuning(listen.tuning, res.deviations);
+  listen.notesNow = res.notes;
   const frame = res.chroma;
   const sum = frame.reduce((s, x) => s + x, 0);
   if (!sum) return;
@@ -1300,12 +1367,16 @@ async function startListening(source) {
   if (listen.ctx) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume(); // ainda dentro do toque no botão: no celular o áudio começa "pausado"
     let node = source ? source(ctx) : null;
     if (!node) {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("sem-microfone");
       const deviceId = audioInputSel.value;
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+          // Sem cancelamento de eco nem supressão de ruído: eles apagam justamente a música.
+          // Volume automático ligado: o microfone do celular entrega sinal fraco sem ele.
+          echoCancellation: false, noiseSuppression: false, autoGainControl: true,
           ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
         },
       });
@@ -1313,10 +1384,18 @@ async function startListening(source) {
       node = ctx.createMediaStreamSource(stream);
       fillAudioInputs(stream); // com a permissão dada, o navegador mostra o nome das entradas
     }
+    if (ctx.state !== "running") await ctx.resume(); // iPhone pode pausar o áudio ao pedir permissão
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 16384; // boa resolução para distinguir notas graves
     analyser.smoothingTimeConstant = 0;
     node.connect(analyser);
+    // O Safari (iPhone) só processa o áudio se ele estiver ligado à saída: liga com volume zero
+    const mute = ctx.createGain();
+    mute.gain.value = 0;
+    analyser.connect(mute);
+    mute.connect(ctx.destination);
+    listen.noiseFloor = 0.0003;
+    listen.lowSince = null;
     Object.assign(listen, { ctx, analyser });
     listen.timer = setInterval(analyseFrame, 150);
     listenBtn.textContent = "Parar de escutar";
@@ -1326,8 +1405,12 @@ async function startListening(source) {
   } catch (err) {
     console.error(err);
     stopListening();
-    listenStatus.textContent = err && err.name === "NotAllowedError"
-      ? "Sem permissão para usar o microfone. Libere o microfone para este site nas configurações do navegador."
+    const name = err && err.name;
+    listenStatus.textContent =
+      name === "NotAllowedError" ? "Sem permissão para usar o microfone. Libere o microfone para este site nas configurações do navegador (no iPhone: Ajustes > Safari > Microfone)."
+      : name === "NotReadableError" ? "O microfone está sendo usado por outro app (ligação, gravador, WhatsApp). Feche o outro app e tente de novo."
+      : name === "OverconstrainedError" || name === "NotFoundError" ? "A entrada de áudio escolhida não foi encontrada. Escolha \"Microfone padrão\" e tente de novo."
+      : err && err.message === "sem-microfone" ? "Este navegador não permite usar o microfone. No iPhone, abra o site no Safari; no Android, no Chrome."
       : "Não foi possível usar o microfone neste aparelho.";
   }
 }
@@ -1339,6 +1422,7 @@ function stopListening() {
   Object.assign(listen, { ctx: null, stream: null, analyser: null, timer: null });
   listenBtn.textContent = "Começar a escutar";
   listenBtn.classList.remove("listening");
+  inputLevelEl.style.width = "0";
   if (listen.frames >= MIN_FRAMES) keyHintEl.textContent = "Escuta parada. O resultado acima é do que foi tocado.";
 }
 
