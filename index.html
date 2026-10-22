@@ -204,6 +204,40 @@
   .map tr.focus th { color: var(--accent); }
   .map tr.dim { opacity: 0.35; }
   .map-legend { font-size: 0.85rem; color: var(--muted); max-width: 80ch; }
+  .map-legend:empty { display: none; }
+  .map-tip { font-size: 0.85rem; color: var(--muted); margin: 0 0 6px; }
+  .map td { cursor: pointer; transition: transform 0.08s; }
+  .map td:hover { border-color: var(--deg); }
+  .map td:active, .map td.playing { transform: scale(0.95); background: var(--bg); }
+  .map td:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .map th small + small { margin-top: 1px; }
+  .map tr.spacer td { background: transparent; border: 0; padding: 2px; cursor: default; }
+  .map thead th { text-align: center; font-size: 0.75rem; color: var(--muted); font-weight: 600; white-space: normal; line-height: 1.2; }
+  .map thead th b { display: block; color: var(--ink); font-size: 0.85rem; }
+
+  /* Treino */
+  .score { margin-left: auto; font-size: 0.95rem; }
+  .score strong { color: var(--accent); }
+  .train-card {
+    max-width: 640px; margin: 0 auto; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 16px;
+  }
+  .train-question { font-size: 1.3rem; font-weight: 600; margin: 0; text-align: center; }
+  .train-question b { color: var(--accent); }
+  .train-audio { justify-content: center; flex-wrap: wrap; }
+  .train-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+  .train-options button {
+    font-size: 1.15rem; padding: 14px 8px; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--line); font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .train-options button:hover:not(:disabled) { border-color: var(--accent); }
+  .train-options button.right { background: #1f8a4c; border-color: #1f8a4c; color: #fff; opacity: 1; }
+  .train-options button.wrong { background: var(--chord); border-color: var(--chord); color: #fff; opacity: 1; }
+  .train-options button small { display: block; font-size: 0.75rem; font-family: "Figtree", system-ui, sans-serif; opacity: 0.85; }
+  .train-feedback { margin: 0; text-align: center; min-height: 1.5em; font-weight: 600; }
+  .train-feedback.ok { color: #1f8a4c; }
+  .train-feedback.bad { color: var(--chord); }
+  .train-card > .btns { justify-content: center; }
 
   /* Celular: botões maiores e mais espaçados */
   @media (max-width: 600px) {
@@ -229,6 +263,13 @@
     .map td { padding: 4px 0 6px; border-radius: 6px; }
     .map td .deg { font-size: 0.7rem; }
     .map td .note { font-size: 0.85rem; }
+    .map thead th { font-size: 0.6rem; }
+    .map thead th b { font-size: 0.75rem; }
+    .score { margin-left: 0; flex-basis: 100%; }
+    .train-card { padding: 18px 14px; }
+    .train-question { font-size: 1.1rem; }
+    .train-options { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); }
+    .train-card > .btns button, .train-audio button { flex: 1; padding: 10px 12px; }
   }
 </style>
 </head>
@@ -261,6 +302,7 @@
   <nav class="tabs" role="tablist" aria-label="Ferramentas">
     <button role="tab" id="tabConv" aria-controls="viewConv" aria-selected="true">Conversor</button>
     <button role="tab" id="tabMap" aria-controls="viewMap" aria-selected="false">Mapa de graus</button>
+    <button role="tab" id="tabTrain" aria-controls="viewTrain" aria-selected="false">Treino</button>
   </nav>
 
   <div id="viewConv" role="tabpanel" aria-labelledby="tabConv">
@@ -321,8 +363,9 @@
       <div class="field">
         <span class="field-label" id="mapShowLabel">Mostrar</span>
         <div class="segmented" role="group" aria-labelledby="mapShowLabel">
-          <button type="button" id="mapNotes" aria-pressed="true">Notas</button>
-          <button type="button" id="mapChords" aria-pressed="false">Acordes do campo harmônico</button>
+          <button type="button" data-map-mode="notes" aria-pressed="true">Notas</button>
+          <button type="button" data-map-mode="chords" aria-pressed="false">Campo harmônico</button>
+          <button type="button" data-map-mode="outside" aria-pressed="false">Fora do campo</button>
         </div>
       </div>
       <div class="field">
@@ -330,6 +373,9 @@
         <select id="mapOrder">
           <option value="chromatic">Notas (C, Db, D...)</option>
           <option value="fifths">Ciclo das quintas (C, G, D...)</option>
+          <option value="fourths">Ciclo das quartas (C, F, Bb...)</option>
+          <option value="thirdsMajor">Terças maiores (C, E, Ab...)</option>
+          <option value="thirdsMinor">Terças menores / sextas (C, Eb, F#, A...)</option>
         </select>
       </div>
       <div class="field">
@@ -337,10 +383,50 @@
         <select id="mapFocus"><option value="">Nenhum</option></select>
       </div>
     </div>
+    <p class="map-tip">Toque em qualquer bloco para ouvir a nota ou o acorde.</p>
     <div class="map-wrap">
       <table class="map" id="mapTable" aria-label="Escalas maiores e seus graus"></table>
     </div>
-    <p class="map-legend">Cada linha é uma escala maior; o número em cima de cada bloco é o grau. Os acordes do campo harmônico seguem o padrão de todo tom maior: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto. A coluna da esquerda mostra a armadura (quantos sustenidos ou bemóis o tom tem).</p>
+    <p class="map-legend" id="mapLegend"></p>
+    <p class="map-legend" id="mapOrderLegend"></p>
+  </section>
+
+  <section id="viewTrain" role="tabpanel" aria-labelledby="tabTrain" hidden>
+    <div class="map-controls">
+      <div class="field">
+        <span class="field-label" id="trainModeLabel">Treino</span>
+        <div class="segmented" role="group" aria-labelledby="trainModeLabel">
+          <button type="button" data-train-mode="quiz" aria-pressed="true">Perguntas</button>
+          <button type="button" data-train-mode="ear" aria-pressed="false">Ouvido</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="trainKey">Tom</label>
+        <select id="trainKey"><option value="">Aleatório</option></select>
+      </div>
+      <div class="field" id="earSoundField" hidden>
+        <label for="earSound">Ouvir</label>
+        <select id="earSound">
+          <option value="chords">Acordes do campo</option>
+          <option value="notes">Notas da escala</option>
+        </select>
+      </div>
+      <div class="score" aria-live="polite">Acertos: <strong id="trainScore">0 de 0</strong> <span id="trainStreak"></span></div>
+    </div>
+
+    <div class="train-card">
+      <p class="train-question" id="trainQuestion"></p>
+      <div class="btns train-audio" id="earControls" hidden>
+        <button type="button" class="ghost" id="earReplay">Ouvir de novo</button>
+        <button type="button" class="ghost" id="earTonic">Ouvir o 1</button>
+      </div>
+      <div class="train-options" id="trainOptions"></div>
+      <p class="train-feedback" id="trainFeedback" role="status"></p>
+      <div class="btns">
+        <button type="button" id="trainNext">Próxima</button>
+        <button type="button" class="ghost" id="trainReset">Zerar placar</button>
+      </div>
+    </div>
   </section>
 </main>
 
@@ -594,6 +680,108 @@ function keySignature(scale) {
   const sharps = scale.filter((n) => n.includes("#")).length;
   const flats = scale.filter((n) => n.includes("b")).length;
   return sharps ? sharps + "#" : flats ? flats + "b" : "0";
+}
+
+// Nome simples de uma nota pelo número (0-11), preferindo bemol (usado quando a escrita
+// "teórica" ficaria estranha, como Fb ou Bbb)
+const FLAT_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const semitoneOf = (name) => noteToSemitone(name[0], name.slice(1, 2));
+
+// Relativo menor: o 6º grau da escala (G -> Em)
+function relativeMinor(tonicName) {
+  return majorScale(tonicName)[5] + "m";
+}
+
+// Ordens dos tons no mapa. Terças e sextas formam grupos que se repetem:
+// terças maiores (4 semitons) fecham em 3 tons; terças menores (3 semitons, que é o mesmo
+// que uma sexta maior no sentido contrário) fecham em 4 tons.
+function mapOrderGroups(order) {
+  if (order === "fifths") return [FIFTHS_ORDER];
+  if (order === "fourths") return [[FIFTHS_ORDER[0], ...FIFTHS_ORDER.slice(1).reverse()]];
+  if (order === "thirdsMajor" || order === "thirdsMinor") {
+    const step = order === "thirdsMajor" ? 4 : 3, size = 12 / step;
+    const groups = [];
+    for (let start = 0; start < step; start++) {
+      groups.push(Array.from({ length: size }, (_, k) => MAP_KEYS[(start + k * step) % 12]));
+    }
+    return groups;
+  }
+  return [MAP_KEYS];
+}
+
+// Acordes de fora do campo mais usados num tom maior
+//  - empréstimos do tom menor (mesma tônica): b3, 4m, b6, b7
+//  - dominantes secundários: acorde maior que "leva" a outro grau do campo
+const OUTSIDE_CHORDS = [
+  { label: "b3M", degree: 3, flat: true, q: "", group: "Empréstimo do menor" },
+  { label: "4m", degree: 4, flat: false, q: "m", group: "Empréstimo do menor" },
+  { label: "b6M", degree: 6, flat: true, q: "", group: "Empréstimo do menor" },
+  { label: "b7M", degree: 7, flat: true, q: "", group: "Empréstimo do menor" },
+  { label: "2M", degree: 2, flat: false, q: "", group: "Dominante", leadsTo: "5" },
+  { label: "3M", degree: 3, flat: false, q: "", group: "Dominante", leadsTo: "6" },
+  { label: "6M", degree: 6, flat: false, q: "", group: "Dominante", leadsTo: "2" },
+];
+function lowerNote(note) {
+  if (note.endsWith("#")) return note.slice(0, -1);
+  const flat = note + "b";
+  // Fb, Cb ou dobrado bemol: usa o nome simples (E, B, A...)
+  return /bb$|^Fb$|^Cb$/.test(flat) ? FLAT_NAMES[(semitoneOf(note) + 11) % 12] : flat;
+}
+function outsideChords(tonicName) {
+  const scale = majorScale(tonicName);
+  return OUTSIDE_CHORDS.map((c) => {
+    const base = scale[c.degree - 1];
+    return { ...c, chord: (c.flat ? lowerNote(base) : base) + c.q };
+  });
+}
+
+// Notas (MIDI) para tocar um acorde: baixo na 3ª oitava e a tríade acima
+function chordMidis(name) {
+  const m = name.match(/^([A-G])([#b]?)(m|°)?$/);
+  const root = 48 + noteToSemitone(m[1], m[2]);
+  const iv = m[3] === "m" ? [0, 3, 7] : m[3] === "°" ? [0, 3, 6] : [0, 4, 7];
+  return [root, ...iv.map((x) => root + 12 + x)];
+}
+function noteMidi(name, octave = 4) {
+  return 12 * (octave + 1) + semitoneOf(name);
+}
+
+// ---------- Perguntas do treino ----------
+// rnd: função que devolve um número entre 0 e 1 (Math.random no site; fixa nos testes)
+const pick = (arr, rnd) => arr[Math.floor(rnd() * arr.length)];
+function shuffle(arr, rnd) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function withDistractors(answer, pool, rnd, n = 4) {
+  const others = shuffle([...new Set(pool.filter((x) => x !== answer))], rnd).slice(0, n - 1);
+  return shuffle([answer, ...others], rnd);
+}
+const DEGREE_LABELS = ["1", "2", "3", "4", "5", "6", "7"];
+function makeQuestion(fixedKey, rnd = Math.random) {
+  const key = fixedKey || pick(MAP_KEYS, rnd);
+  const scale = majorScale(key);
+  const field = scale.map((n, i) => n + FIELD_CHORDS[i]);
+  const k = Math.floor(rnd() * 7);
+  const type = pick(["degreeToNote", "noteToDegree", "degreeToChord", "chordToDegree", "outside"], rnd);
+  if (type === "degreeToNote") {
+    return { key, html: `Qual é o grau <b>${k + 1}</b> de <b>${key}</b> maior?`, answer: scale[k], options: withDistractors(scale[k], scale, rnd), explain: `${key} maior: ${scale.join(" ")}` };
+  }
+  if (type === "noteToDegree") {
+    return { key, html: `Em <b>${key}</b> maior, a nota <b>${scale[k]}</b> é qual grau?`, answer: DEGREE_LABELS[k], options: withDistractors(DEGREE_LABELS[k], DEGREE_LABELS, rnd), explain: `${key} maior: ${scale.map((n, i) => (i + 1) + "=" + n).join("  ")}` };
+  }
+  if (type === "degreeToChord") {
+    const wrongQuality = scale[k] + (FIELD_CHORDS[k] === "m" ? "" : "m");
+    return { key, html: `Qual é o acorde do grau <b>${k + 1}</b> no campo de <b>${key}</b>?`, answer: field[k], options: withDistractors(field[k], [wrongQuality, ...field], rnd), explain: `Campo de ${key}: ${field.join(" ")}` };
+  }
+  if (type === "chordToDegree") {
+    return { key, html: `No campo de <b>${key}</b>, o acorde <b>${field[k]}</b> é qual grau?`, answer: DEGREE_LABELS[k], options: withDistractors(DEGREE_LABELS[k], DEGREE_LABELS, rnd), explain: `Campo de ${key}: ${field.map((c, i) => (i + 1) + "=" + c).join("  ")}` };
+  }
+  const out = outsideChords(key);
+  const o = pick(out, rnd);
+  const what = o.leadsTo ? `o <b>${o.label}</b> (dominante que leva ao ${o.leadsTo})` : `o <b>${o.label}</b> (empréstimo do menor)`;
+  return { key, html: `Em <b>${key}</b> maior, qual é ${what}?`, answer: o.chord, options: withDistractors(o.chord, [...out.map((x) => x.chord), ...field], rnd), explain: `Fora do campo de ${key}: ${out.map((x) => x.label + "=" + x.chord).join("  ")}` };
 }
 
 // ---------- 5. Interface ----------
@@ -888,68 +1076,293 @@ detectKey();
 render();
 
 // ---------- 6b. Abas ----------
-const tabConv = $("tabConv"), tabMap = $("tabMap"), viewConv = $("viewConv"), viewMap = $("viewMap");
-const LEAD_CONV = $("leadText").textContent;
+const TABS = {
+  conv: { tab: $("tabConv"), view: $("viewConv"), lead: $("leadText").textContent },
+  map: { tab: $("tabMap"), view: $("viewMap"), lead: "Todas as escalas maiores com o grau de cada nota, para estudar e praticar." },
+  train: { tab: $("tabTrain"), view: $("viewTrain"), lead: "Treine graus, campo harmônico e ouvido." },
+};
 function showTab(name) {
-  const map = name === "map";
-  tabConv.setAttribute("aria-selected", String(!map));
-  tabMap.setAttribute("aria-selected", String(map));
-  viewConv.hidden = map;
-  viewMap.hidden = !map;
-  $("leadText").textContent = map ? "Todas as escalas maiores com o grau de cada nota, para estudar e praticar." : LEAD_CONV;
+  for (const [key, t] of Object.entries(TABS)) {
+    t.tab.setAttribute("aria-selected", String(key === name));
+    t.view.hidden = key !== name;
+  }
+  $("leadText").textContent = TABS[name].lead;
+  if (name === "train" && !train.current) newQuestion();
 }
-tabConv.addEventListener("click", () => showTab("conv"));
-tabMap.addEventListener("click", () => showTab("map"));
+for (const key of Object.keys(TABS)) TABS[key].tab.addEventListener("click", () => showTab(key));
 
-// ---------- 6c. Mapa de graus ----------
+// ---------- 6c. Som (gerado no navegador, sem microfone) ----------
+// Obs.: no iPhone, com a chave de silencioso ligada, o navegador não toca som.
+let audioCtx = null;
+function audio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state !== "running") audioCtx.resume();
+  return audioCtx;
+}
+// Toca notas MIDI com um timbre de piano elétrico simples (notas levemente "dedilhadas")
+function playMidis(midis, { when = 0, strum = 0.025, dur = 1.4 } = {}) {
+  const ctx = audio();
+  if (!ctx) return;
+  const t0 = ctx.currentTime + 0.03 + when;
+  const master = ctx.createGain();
+  master.gain.value = 0.25 / Math.sqrt(midis.length);
+  master.connect(ctx.destination);
+  midis.forEach((m, i) => {
+    const st = t0 + i * strum, freq = 440 * 2 ** ((m - 69) / 12);
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, st);
+    env.gain.exponentialRampToValueAtTime(1, st + 0.01);
+    env.gain.exponentialRampToValueAtTime(0.35, st + 0.25);
+    env.gain.exponentialRampToValueAtTime(0.0001, st + dur);
+    env.connect(master);
+    for (const [type, mult, amp] of [["triangle", 1, 1], ["sine", 2, 0.25]]) {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = freq * mult;
+      const g = ctx.createGain();
+      g.gain.value = amp;
+      osc.connect(g);
+      g.connect(env);
+      osc.start(st);
+      osc.stop(st + dur + 0.05);
+    }
+  });
+}
+// Nota do grau "k" (0-6) do tom, sempre subindo a partir da tônica (perto do Dó central)
+function scaleNoteMidi(key, k) {
+  let tonic = 60 + semitoneOf(key);
+  if (tonic > 66) tonic -= 12;
+  return tonic + MAJOR_STEPS[k];
+}
+
+// ---------- 6d. Mapa de graus ----------
 const mapTable = $("mapTable"), mapOrder = $("mapOrder"), mapFocus = $("mapFocus");
-const mapNotesBtn = $("mapNotes"), mapChordsBtn = $("mapChords");
-let mapShowChords = false;
+const mapLegend = $("mapLegend"), mapOrderLegend = $("mapOrderLegend");
+const mapModeBtns = [...document.querySelectorAll("[data-map-mode]")];
+let mapMode = "notes";
 MAP_KEYS.forEach((k) => mapFocus.add(new Option(k + " maior", k)));
 
-function renderMap() {
-  const keys = mapOrder.value === "fifths" ? FIFTHS_ORDER : MAP_KEYS;
-  const focus = mapFocus.value;
-  const rows = keys.map((key) => {
-    const scale = majorScale(key);
-    const tr = document.createElement("tr");
-    if (focus) tr.className = key === focus ? "focus" : "dim";
-    const th = document.createElement("th");
-    th.scope = "row";
-    th.textContent = key;
-    const sig = document.createElement("small");
-    sig.textContent = keySignature(scale);
-    th.append(sig);
-    tr.append(th);
-    scale.forEach((note, k) => {
-      const td = document.createElement("td");
-      td.style.setProperty("--deg", `var(--deg${k + 1})`);
-      const deg = document.createElement("span");
-      deg.className = "deg";
-      deg.textContent = String(k + 1);
-      const name = document.createElement("span");
-      name.className = "note";
-      name.textContent = mapShowChords ? note + FIELD_CHORDS[k] : note;
-      td.append(deg, name);
-      td.title = "Grau " + (k + 1) + " de " + key + " maior: " + name.textContent;
-      tr.append(td);
-    });
-    return tr;
-  });
-  mapTable.replaceChildren(...rows);
+const MAP_LEGENDS = {
+  notes: "Cada linha é uma escala maior; o número em cima de cada bloco é o grau. Ao lado do tom: a armadura (quantos sustenidos ou bemóis ele tem) e o relativo menor, que é o 6º grau.",
+  chords: "Acordes do campo harmônico. Em todo tom maior o padrão é o mesmo: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto.",
+  outside: "Acordes de fora do campo mais comuns. Empréstimos do menor (b3M, 4m, b6M, b7M) vêm do tom menor com a mesma tônica e dão cor à música. Dominantes secundários (2M, 3M, 6M) são acordes maiores que \"puxam\" para outro grau do campo: o 2M leva ao 5, o 3M leva ao 6, o 6M leva ao 2. São as marcações M e m que o conversor mostra.",
+};
+const ORDER_LEGENDS = {
+  chromatic: "",
+  fifths: "Ciclo das quintas: cada tom é o 5º grau do anterior e ganha um sustenido (ou perde um bemol). Tons vizinhos têm quase as mesmas notas.",
+  fourths: "Ciclo das quartas: o caminho inverso das quintas; cada tom é o 4º grau do anterior. É o movimento de progressões como 2-5-1.",
+  thirdsMajor: "Terças maiores: cada tom fica 4 semitons acima do anterior (C, E, Ab) e o caminho fecha em 3 tons. São 4 grupos.",
+  thirdsMinor: "Terças menores: cada tom fica 3 semitons acima do anterior (C, Eb, F#, A) e o caminho fecha em 4 tons; é o mesmo que descer uma sexta maior. São 3 grupos.",
+};
+
+function mapCell({ label, text, color, play, title }) {
+  const td = document.createElement("td");
+  td.style.setProperty("--deg", color);
+  td.tabIndex = 0;
+  td.dataset.play = JSON.stringify(play);
+  td.title = title;
+  const deg = document.createElement("span");
+  deg.className = "deg";
+  deg.textContent = label;
+  const name = document.createElement("span");
+  name.className = "note";
+  name.textContent = text;
+  td.append(deg, name);
+  return td;
 }
 
-function setMapMode(chords) {
-  mapShowChords = chords;
-  mapNotesBtn.setAttribute("aria-pressed", String(!chords));
-  mapChordsBtn.setAttribute("aria-pressed", String(chords));
-  renderMap();
+function renderMap() {
+  const focus = mapFocus.value;
+  const groups = mapOrderGroups(mapOrder.value);
+  const parts = [];
+  if (mapMode === "outside") {
+    const thead = document.createElement("thead");
+    const tr = document.createElement("tr");
+    tr.append(document.createElement("th"));
+    for (const c of OUTSIDE_CHORDS) {
+      const th = document.createElement("th");
+      th.scope = "col";
+      const b = document.createElement("b");
+      b.textContent = c.label;
+      th.append(b, document.createTextNode(c.leadsTo ? "leva ao " + c.leadsTo : "empréstimo"));
+      tr.append(th);
+    }
+    thead.append(tr);
+    parts.push(thead);
+  }
+  const tbody = document.createElement("tbody");
+  groups.forEach((keys, gi) => {
+    if (gi) { // espaço entre os grupos de terças
+      const sp = document.createElement("tr");
+      sp.className = "spacer";
+      const td = document.createElement("td");
+      td.colSpan = 8;
+      sp.append(td);
+      tbody.append(sp);
+    }
+    for (const key of keys) {
+      const scale = majorScale(key);
+      const tr = document.createElement("tr");
+      if (focus) tr.className = key === focus ? "focus" : "dim";
+      const th = document.createElement("th");
+      th.scope = "row";
+      th.textContent = key;
+      const sig = document.createElement("small");
+      sig.textContent = keySignature(scale);
+      const rel = document.createElement("small");
+      rel.textContent = relativeMinor(key);
+      rel.title = "Relativo menor (6º grau)";
+      th.append(sig, rel);
+      tr.append(th);
+      if (mapMode === "outside") {
+        for (const c of outsideChords(key)) {
+          tr.append(mapCell({
+            label: c.label, text: c.chord, color: c.leadsTo ? "var(--deg5)" : "var(--deg3)",
+            play: { chord: c.chord },
+            title: c.label + " em " + key + " maior: " + c.chord + (c.leadsTo ? " (leva ao " + c.leadsTo + ")" : " (empréstimo do menor)"),
+          }));
+        }
+      } else {
+        scale.forEach((note, k) => {
+          const chords = mapMode === "chords";
+          const text = chords ? note + FIELD_CHORDS[k] : note;
+          tr.append(mapCell({
+            label: String(k + 1), text, color: "var(--deg" + (k + 1) + ")",
+            play: chords ? { chord: text } : { midi: scaleNoteMidi(key, k) },
+            title: "Grau " + (k + 1) + " de " + key + " maior: " + text,
+          }));
+        });
+      }
+      tbody.append(tr);
+    }
+  });
+  parts.push(tbody);
+  mapTable.replaceChildren(...parts);
+  mapLegend.textContent = MAP_LEGENDS[mapMode];
+  mapOrderLegend.textContent = ORDER_LEGENDS[mapOrder.value];
 }
-mapNotesBtn.addEventListener("click", () => setMapMode(false));
-mapChordsBtn.addEventListener("click", () => setMapMode(true));
+
+function playCell(td) {
+  const p = JSON.parse(td.dataset.play);
+  playMidis(p.chord ? chordMidis(p.chord) : [p.midi], { strum: p.chord ? 0.03 : 0 });
+  td.classList.add("playing");
+  setTimeout(() => td.classList.remove("playing"), 150);
+}
+mapTable.addEventListener("click", (e) => { const td = e.target.closest("td[data-play]"); if (td) playCell(td); });
+mapTable.addEventListener("keydown", (e) => {
+  const td = e.target.closest("td[data-play]");
+  if (td && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); playCell(td); }
+});
+mapModeBtns.forEach((btn) => btn.addEventListener("click", () => {
+  mapMode = btn.dataset.mapMode;
+  mapModeBtns.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  renderMap();
+}));
 mapOrder.addEventListener("change", renderMap);
 mapFocus.addEventListener("change", renderMap);
 renderMap();
+
+// ---------- 6e. Treino ----------
+const trainKeySel = $("trainKey"), earSoundSel = $("earSound"), trainQuestionEl = $("trainQuestion");
+const trainOptionsEl = $("trainOptions"), trainFeedbackEl = $("trainFeedback");
+const trainScoreEl = $("trainScore"), trainStreakEl = $("trainStreak");
+const trainModeBtns = [...document.querySelectorAll("[data-train-mode]")];
+MAP_KEYS.forEach((k) => trainKeySel.add(new Option(k + " maior", k)));
+const train = { mode: "quiz", current: null, answered: false, ok: 0, total: 0, streak: 0, lastEar: -1 };
+
+function updateScore() {
+  trainScoreEl.textContent = train.ok + " de " + train.total;
+  trainStreakEl.textContent = train.streak >= 3 ? "· " + train.streak + " seguidas!" : "";
+}
+
+// Ouvido: toca o acorde (ou a nota) do 1 como referência e depois o grau sorteado
+function playEar(which = "both") {
+  const q = train.current;
+  if (!q || !q.ear) return;
+  const chords = q.sound === "chords";
+  const ref = chords ? chordMidis(q.field[0]) : [scaleNoteMidi(q.key, 0)];
+  const target = chords ? chordMidis(q.field[q.k]) : [scaleNoteMidi(q.key, q.k)];
+  if (which !== "target") playMidis(ref, { strum: chords ? 0.03 : 0, dur: 1.1 });
+  if (which !== "tonic") playMidis(target, { when: which === "target" ? 0 : 1.3, strum: chords ? 0.03 : 0, dur: 1.4 });
+}
+
+function makeEarQuestion() {
+  const key = trainKeySel.value || MAP_KEYS[Math.floor(Math.random() * 12)];
+  const scale = majorScale(key);
+  let k;
+  do { k = Math.floor(Math.random() * 7); } while (k === train.lastEar);
+  train.lastEar = k;
+  const sound = earSoundSel.value;
+  return {
+    ear: true, key, k, sound, scale,
+    field: scale.map((n, i) => n + FIELD_CHORDS[i]),
+    html: `Tom: <b>${key} maior</b>. Primeiro toca o 1, depois outro ${sound === "chords" ? "acorde" : "nota"}. Qual grau você ouviu?`,
+    answer: DEGREE_LABELS[k],
+    options: DEGREE_LABELS,
+  };
+}
+
+function newQuestion() {
+  train.answered = false;
+  train.current = train.mode === "ear" ? makeEarQuestion() : makeQuestion(trainKeySel.value || null);
+  const q = train.current;
+  trainQuestionEl.innerHTML = q.html; // texto montado pelo próprio site (sem entrada do usuário)
+  trainFeedbackEl.textContent = "";
+  trainFeedbackEl.className = "train-feedback";
+  $("earControls").hidden = !q.ear;
+  trainOptionsEl.replaceChildren(...q.options.map((opt) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = opt;
+    b.dataset.value = opt;
+    b.addEventListener("click", () => answer(opt));
+    return b;
+  }));
+  if (q.ear) playEar();
+}
+
+function answer(opt) {
+  const q = train.current;
+  if (!q || train.answered) return;
+  train.answered = true;
+  const right = opt === q.answer;
+  train.total++;
+  if (right) { train.ok++; train.streak++; } else train.streak = 0;
+  updateScore();
+  for (const b of trainOptionsEl.children) {
+    b.disabled = true;
+    if (b.dataset.value === q.answer) b.classList.add("right");
+    else if (b.dataset.value === opt) b.classList.add("wrong");
+    if (q.ear) { // revela o acorde/nota de cada grau
+      const i = DEGREE_LABELS.indexOf(b.dataset.value);
+      const small = document.createElement("small");
+      small.textContent = q.sound === "chords" ? q.field[i] : q.scale[i];
+      b.append(small);
+    }
+  }
+  const correct = q.ear ? q.answer + " (" + (q.sound === "chords" ? q.field[q.k] : q.scale[q.k]) + ")" : q.answer;
+  trainFeedbackEl.textContent = right ? "Certo! " + (q.explain || "") : "Não foi dessa vez: a resposta é " + correct + ". " + (q.explain || "");
+  trainFeedbackEl.className = "train-feedback " + (right ? "ok" : "bad");
+  $("trainNext").focus();
+}
+
+trainModeBtns.forEach((btn) => btn.addEventListener("click", () => {
+  train.mode = btn.dataset.trainMode;
+  trainModeBtns.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  $("earSoundField").hidden = train.mode !== "ear";
+  newQuestion();
+}));
+trainKeySel.addEventListener("change", newQuestion);
+earSoundSel.addEventListener("change", newQuestion);
+$("trainNext").addEventListener("click", newQuestion);
+$("trainReset").addEventListener("click", () => { Object.assign(train, { ok: 0, total: 0, streak: 0 }); updateScore(); });
+$("earReplay").addEventListener("click", () => playEar());
+$("earTonic").addEventListener("click", () => playEar("tonic"));
+updateScore();
 
 // ---------- 7. Registro de cifras (Supabase) ----------
 // A chave "anon" é pública por natureza: o acesso aos dados é protegido pelas

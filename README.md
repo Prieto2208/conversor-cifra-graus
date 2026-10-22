@@ -17,7 +17,12 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 
 ## Mapa de graus
 
-Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, Db maior tem Gb), o grau em cima de cada nota, a armadura de cada tom e a opção de ver os acordes do campo harmônico (1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto). Dá para ordenar pelas notas ou pelo ciclo das quintas e destacar um tom.
+Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, Db maior tem Gb), o grau em cima de cada nota, a armadura e o relativo menor de cada tom. Três modos: notas, acordes do campo harmônico (1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto) e fora do campo (empréstimos b3M, 4m, b6M, b7M e dominantes secundários 2M, 3M, 6M). Ordem pelas notas, ciclo das quintas, ciclo das quartas, terças maiores ou terças menores/sextas. Tocar num bloco toca a nota ou o acorde (som gerado no navegador).
+
+## Treino
+
+- Perguntas: grau de uma nota, nota de um grau, acordes do campo e de fora do campo, com placar.
+- Ouvido: o site toca o 1 do tom e depois um acorde (ou nota) do campo; você responde o grau.
 
 ## Como usar
 
