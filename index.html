@@ -225,7 +225,14 @@
   .mod-song legend { font-weight: 700; padding: 0 6px; }
   .mod-song .field { flex: 1 1 140px; }
   .mod-song select { width: 100%; }
-  @media (max-width: 600px) { .mod-controls { grid-template-columns: 1fr; } }
+  @media (max-width: 600px) {
+    .mod-controls { grid-template-columns: 1fr; }
+    .mod-card { padding: 12px; }
+    .mod-seq { gap: 3px; }
+    .chip { min-width: 0; padding: 6px 7px; }
+    .chip strong { font-size: 1rem; }
+    .chip small { font-size: 0.65rem; }
+  }
   .mod-summary { font-size: 1.05rem; margin: 0 0 14px; }
   .mod-summary b { color: var(--accent); }
   .mod-paths, .mod-extra { display: grid; gap: 12px; margin-bottom: 12px; }
