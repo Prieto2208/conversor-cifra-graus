@@ -21,6 +21,8 @@ Aba que escuta pelo microfone e reconhece os **acordes** (em qualquer região, a
 
 Para banda completa: compensa a afinação da banda, tira a bateria (mediana no tempo), analisa o baixo à parte e mostra baixo, notas soando e afinação. Dá para escolher a entrada de áudio (ex.: interface USB ligada na mesa de som).
 
+As notas são encontradas por soma de harmônicos (acha a nota certa mesmo com a fundamental fraca, como no microfone do celular). Os parâmetros foram calibrados com gravações reais de violão da base GuitarSet (CC BY 4.0): em 180 gravações, o acorde certo (fundamental + maior/menor) passou de 48,5% para 61,8% e a fundamental de 57,6% para 65,7%.
+
 ## Como usar
 
 Abra a página, cole a cifra na caixa da esquerda e copie ou baixe o resultado da direita.
