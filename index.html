@@ -411,6 +411,13 @@
   <section id="viewMap" role="tabpanel" aria-labelledby="tabMap" hidden>
     <div class="map-controls">
       <div class="field">
+        <span class="field-label" id="mapFieldLabel">Campo</span>
+        <div class="segmented" role="group" aria-labelledby="mapFieldLabel">
+          <button type="button" data-map-field="major" aria-pressed="true">Maior</button>
+          <button type="button" data-map-field="minor" aria-pressed="false">Menor</button>
+        </div>
+      </div>
+      <div class="field">
         <span class="field-label" id="mapShowLabel">Mostrar</span>
         <div class="segmented" role="group" aria-labelledby="mapShowLabel">
           <button type="button" data-map-mode="notes" aria-pressed="true">Notas</button>
@@ -772,6 +779,14 @@ const semitoneOf = (name) => noteToSemitone(name[0], name.slice(1, 2));
 // Relativo menor: o 6º grau da escala (G -> Em)
 function relativeMinor(tonicName) {
   return majorScale(tonicName)[5] + "m";
+}
+
+// Campo menor (natural): mesmas notas do relativo maior, começando no 6º grau dele (C -> Am)
+const MINOR_FIELD_CHORDS = ["m", "°", "", "m", "m", "", ""]; // 1, 4 e 5 menores; 3, 6 e 7 maiores; 2 diminuto
+const NATURAL_MINOR_STEPS = [0, 2, 3, 5, 7, 8, 10];
+function minorScale(relativeMajorKey) {
+  const s = majorScale(relativeMajorKey);
+  return [...s.slice(5), ...s.slice(0, 5)];
 }
 
 // Ordens dos tons no mapa. Terças e sextas formam grupos que se repetem:
@@ -1454,11 +1469,23 @@ const mapTable = $("mapTable"), mapOrder = $("mapOrder"), mapFocus = $("mapFocus
 const mapLegend = $("mapLegend"), mapOrderLegend = $("mapOrderLegend");
 const mapModeBtns = [...document.querySelectorAll("[data-map-mode]")];
 let mapMode = "notes";
-MAP_KEYS.forEach((k) => mapFocus.add(new Option(k + " maior", k)));
+let mapField = "major"; // campo maior ou menor
+const mapFieldBtns = [...document.querySelectorAll("[data-map-field]")];
+
+// Destacar tom: as opções mudam com o campo (C maior / A menor), o valor é sempre o tom maior da linha
+function fillMapFocus() {
+  const current = mapFocus.value;
+  mapFocus.replaceChildren(new Option("Nenhum", ""), ...MAP_KEYS.map((k) =>
+    new Option(mapField === "minor" ? relativeMinor(k).replace(/m$/, "") + " menor" : k + " maior", k)));
+  mapFocus.value = current;
+}
+fillMapFocus();
 
 const MAP_LEGENDS = {
   notes: "Cada linha é uma escala maior; o número em cima de cada bloco é o grau. Ao lado do tom: a armadura (quantos sustenidos ou bemóis ele tem) e o relativo menor, que é o 6º grau.",
   chords: "Acordes do campo harmônico. Em todo tom maior o padrão é o mesmo: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto.",
+  minorNotes: "Cada linha é uma escala menor natural; o número em cima de cada bloco é o grau, contado a partir da tônica menor. Ao lado do tom: a armadura e o relativo maior, que tem as mesmas notas (o 1 do menor é o 6 do maior).",
+  minorChords: "Acordes do campo harmônico menor. Em todo tom menor o padrão é o mesmo: 1, 4 e 5 menores; 3, 6 e 7 maiores; 2 diminuto. Na prática, o 5 costuma virar maior (E ou E7 em Am), porque puxa mais forte para o 1.",
 };
 const ORDER_LEGENDS = {
   chromatic: "",
@@ -1499,26 +1526,33 @@ function renderMap() {
       tbody.append(sp);
     }
     for (const key of keys) {
-      const scale = majorScale(key);
+      // Cada linha é guardada pelo tom maior; no campo menor mostra o relativo menor dele
+      const minor = mapField === "minor";
+      const scale = minor ? minorScale(key) : majorScale(key);
+      const tonicName = scale[0] + (minor ? "m" : "");
       const tr = document.createElement("tr");
       if (focus) tr.className = key === focus ? "focus" : "dim";
       const th = document.createElement("th");
       th.scope = "row";
-      th.textContent = key;
+      th.textContent = tonicName;
       const sig = document.createElement("small");
-      sig.textContent = keySignature(scale);
+      sig.textContent = keySignature(majorScale(key));
       const rel = document.createElement("small");
-      rel.textContent = relativeMinor(key);
-      rel.title = "Relativo menor (6º grau)";
+      rel.textContent = minor ? key : relativeMinor(key);
+      rel.title = minor ? "Relativo maior" : "Relativo menor (6º grau)";
       th.append(sig, rel);
       tr.append(th);
+      // Nota de cada grau, subindo a partir da tônica (tônica entre Sol3 e Fá#4)
+      const tonicMidi = 55 + ((semitoneOf(scale[0]) - 7 + 12) % 12);
+      const steps = minor ? NATURAL_MINOR_STEPS : MAJOR_STEPS;
+      const qualities = minor ? MINOR_FIELD_CHORDS : FIELD_CHORDS;
       scale.forEach((note, k) => {
         const chords = mapMode === "chords";
-        const text = chords ? note + FIELD_CHORDS[k] : note;
+        const text = chords ? note + qualities[k] : note;
         tr.append(mapCell({
           label: String(k + 1), text, color: "var(--deg" + (k + 1) + ")",
-          play: chords ? { chord: text } : { midi: scaleNoteMidi(key, k) },
-          title: "Grau " + (k + 1) + " de " + key + " maior: " + text,
+          play: chords ? { chord: text } : { midi: tonicMidi + steps[k] },
+          title: "Grau " + (k + 1) + " de " + (minor ? scale[0] + " menor" : key + " maior") + ": " + text,
         }));
       });
       tbody.append(tr);
@@ -1526,7 +1560,7 @@ function renderMap() {
   });
   parts.push(tbody);
   mapTable.replaceChildren(...parts);
-  mapLegend.textContent = MAP_LEGENDS[mapMode];
+  mapLegend.textContent = MAP_LEGENDS[mapField === "minor" ? (mapMode === "chords" ? "minorChords" : "minorNotes") : mapMode];
   mapOrderLegend.textContent = ORDER_LEGENDS[mapOrder.value];
 }
 
@@ -1549,6 +1583,12 @@ mapTable.addEventListener("keydown", (e) => {
 mapModeBtns.forEach((btn) => btn.addEventListener("click", () => {
   mapMode = btn.dataset.mapMode;
   mapModeBtns.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  renderMap();
+}));
+mapFieldBtns.forEach((btn) => btn.addEventListener("click", () => {
+  mapField = btn.dataset.mapField;
+  mapFieldBtns.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)));
+  fillMapFocus();
   renderMap();
 }));
 mapOrder.addEventListener("change", renderMap);
