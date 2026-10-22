@@ -685,38 +685,38 @@ function analyzeSpectrum(mags, binHz, tuning = 0) {
   };
   const maxMidi = 69 + 12 * Math.log2(4200 / 440);
 
-  // 2. Soma de harmônicos, nota a nota (Mi1 a Dó6)
+  // 2. Soma de harmônicos, nota a nota (Mi1 a Dó6). Cada nota encontrada desconta 90% dos
+  //    seus harmônicos; o que sobra pode ser de outra nota que soa junto.
+  const H = 10;
+  const partialsOf = (m0) => {
+    const idx = [], amp = [];
+    for (let h = 1; h <= H; h++) {
+      const mh = m0 + 12 * Math.log2(h);
+      const j = mh > maxMidi ? -1 : partialAt(mh);
+      idx.push(j);
+      amp.push(j >= 0 ? resid[j] : 0);
+    }
+    return { idx, amp, smooth: amp };
+  };
   const notes = [];
   let firstSalience = 0;
   for (let iter = 0; iter < MAX_NOTES; iter++) {
     let best = null;
     for (let m0 = 28; m0 <= 84; m0++) {
-      let sal = 0, h1 = 0, h2 = 0, h3 = 0;
-      for (let h = 1; h <= 10; h++) {
-        const mh = m0 + 12 * Math.log2(h);
-        if (mh > maxMidi) break;
-        const j = partialAt(mh);
-        if (j < 0) continue;
-        const a = resid[j];
-        sal += a / h ** 0.6;
-        if (h === 1) h1 = a; else if (h === 2) h2 = a; else if (h === 3) h3 = a;
-      }
+      const { amp, smooth } = partialsOf(m0);
       // Precisa da fundamental, ou ao menos do 2º e do 3º harmônico (fundamental fraca)
-      if (!(h1 > 0 || (h2 > 0 && h3 > 0))) continue;
-      if (!h1) sal *= 0.6; // sem fundamental: pode ser só uma oitava abaixo da nota real
+      if (!(amp[0] > 0 || (amp[1] > 0 && amp[2] > 0))) continue;
+      let sal = 0;
+      for (let k = 0; k < H; k++) sal += smooth[k] / (k + 1) ** 0.6;
+      if (!amp[0]) sal *= 0.6; // sem fundamental: pode ser só uma oitava abaixo da nota real
       if (!best || sal > best.sal) best = { m0, sal };
     }
     if (!best || best.sal <= 0) break;
     if (!iter) firstSalience = best.sal;
-    else if (best.sal < firstSalience * 0.22) break; // o que sobrou é fraco demais para ser nota
+    else if (best.sal < firstSalience * 0.2) break; // o que sobrou é fraco demais para ser nota
     notes.push({ midi: best.m0, pc: best.m0 % 12, strength: best.sal });
-    // Desconta os harmônicos dessa nota (sobra um pouco: outras notas podem dividir o mesmo harmônico)
-    for (let h = 1; h <= 10; h++) {
-      const mh = best.m0 + 12 * Math.log2(h);
-      if (mh > maxMidi) break;
-      const j = partialAt(mh);
-      if (j >= 0) resid[j] *= 0.2;
-    }
+    const { idx, smooth } = partialsOf(best.m0);
+    idx.forEach((j, k) => { if (j >= 0) resid[j] = Math.max(0, resid[j] - smooth[k] * 0.9); });
   }
 
   // 3. Notas -> 12 notas (sem oitava); as graves também contam para o baixo
@@ -732,15 +732,15 @@ function analyzeSpectrum(mags, binHz, tuning = 0) {
   return { chroma, bassChroma, bass, deviations, notes };
 }
 
-// Modelos de acorde: intervalos a partir da fundamental e o peso de cada nota
+// Modelos de acorde: intervalos a partir da fundamental e o peso de cada nota.
+// Ajustados com gravações reais de violão (GuitarSet): sem sus2/sus4, que confundiam
+// acordes maiores, e com o baixo pesando menos (no violão ele alterna fundamental e quinta).
 const CHORD_TYPES = [
   { type: "maj", suffix: "", notes: [[0, 1], [4, 1], [7, 0.8]] },
   { type: "min", suffix: "m", notes: [[0, 1], [3, 1], [7, 0.8]] },
   { type: "7", suffix: "7", notes: [[0, 1], [4, 1], [7, 0.8], [10, 0.7]], penalty: 0.96 },
   { type: "m7", suffix: "m7", notes: [[0, 1], [3, 1], [7, 0.8], [10, 0.7]], penalty: 0.96 },
   { type: "maj7", suffix: "7M", notes: [[0, 1], [4, 1], [7, 0.8], [11, 0.7]], penalty: 0.955 },
-  { type: "sus4", suffix: "sus4", notes: [[0, 1], [5, 1], [7, 0.8]], penalty: 0.95 },
-  { type: "sus2", suffix: "sus2", notes: [[0, 1], [2, 1], [7, 0.8]], penalty: 0.94 },
   { type: "dim", suffix: "dim", notes: [[0, 1], [3, 1], [6, 0.9]], penalty: 0.94 },
 ];
 
@@ -748,12 +748,13 @@ const CHORD_TYPES = [
 // O baixo reforça a fundamental; com o tom já conhecido, acordes do campo harmônico
 // ganham uma leve preferência (empréstimos continuam possíveis).
 function detectChord(chroma, bass, key = null, bassChroma = null) {
-  const v = [...chroma];
+  const mx = Math.max(...chroma) || 1;
+  const v = chroma.map((x) => Math.log1p((10 * x) / mx)); // compressão: nota muito forte não domina
   const norm0 = Math.hypot(...v);
   if (!norm0) return null;
-  if (bassChroma) { // o baixo costuma tocar a fundamental: soma a região grave com meio peso
+  if (bassChroma) { // o baixo costuma tocar a fundamental: soma a região grave com peso pequeno
     const bn = Math.hypot(...bassChroma);
-    if (bn) for (let i = 0; i < 12; i++) v[i] = v[i] / norm0 + (0.5 * bassChroma[i]) / bn;
+    if (bn) for (let i = 0; i < 12; i++) v[i] = v[i] / norm0 + (0.2 * bassChroma[i]) / bn;
   }
   const norm = Math.hypot(...v);
   let best = null;
@@ -783,7 +784,7 @@ const FIELD_QUALITY = {
   major: { 0: "maj", 2: "min", 4: "min", 5: "maj", 7: "maj", 9: "min", 11: "dim" },
   minor: { 0: "min", 2: "dim", 3: "maj", 5: "min", 7: ["min", "maj"], 8: "maj", 10: "maj" },
 };
-const BASE_QUALITY = { maj: "maj", "7": "maj", maj7: "maj", min: "min", m7: "min", dim: "dim", sus4: "sus", sus2: "sus" };
+const BASE_QUALITY = { maj: "maj", "7": "maj", maj7: "maj", min: "min", m7: "min", dim: "dim" };
 function chordKeyScore(chordTime, tonic, mode) {
   let total = 0, score = 0;
   for (const [key, time] of Object.entries(chordTime)) {
@@ -1329,8 +1330,8 @@ function analyseFrame() {
   for (let i = 0; i < 12; i++) {
     const v = frame[i] / sum;
     listen.total[i] = listen.total[i] * DECAY + v;
-    listen.recent[i] = listen.recent[i] * 0.5 + v * 0.5; // média bem curta: o que soa agora
-    listen.recentBass[i] = listen.recentBass[i] * 0.5 + (res.bassChroma[i] / bassSum) * 0.5;
+    listen.recent[i] = listen.recent[i] * 0.8 + v * 0.2; // memória curta (~0,7 s): o que soa agora
+    listen.recentBass[i] = listen.recentBass[i] * 0.8 + (res.bassChroma[i] / bassSum) * 0.2;
   }
   for (const k in listen.chordTime) listen.chordTime[k] *= DECAY;
   const bassMax = Math.max(...listen.recentBass);
