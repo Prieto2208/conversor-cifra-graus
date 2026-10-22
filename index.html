@@ -1515,6 +1515,12 @@ function renderNotes(ctx, midis, { when = 0, strum = 0.025, dur = 1.4, startAt =
 
 // Pad: som longo e macio de fundo (duas ondas levemente desafinadas, filtro bem fechado,
 // entrada e saída lentas). Ao trocar, um some enquanto o outro entra.
+function fadeCurve(peak, up) {
+  return Float32Array.from({ length: 64 }, (_, i) => {
+    const x = (i / 63) * Math.PI / 2;
+    return peak * (up ? Math.sin(x) : Math.cos(x));
+  });
+}
 function synthPad(ctx, midis, start, dur, dest, { attack = 0.45, release = 0.9 } = {}) {
   const level = 0.07 / Math.sqrt(midis.length);
   midis.forEach((midi, i) => {
@@ -1525,10 +1531,10 @@ function synthPad(ctx, midis, start, dur, dest, { attack = 0.45, release = 0.9 }
     filter.Q.value = 0.3;
     const env = ctx.createGain();
     const peak = i === 0 ? level * 0.8 : level;
-    env.gain.setValueAtTime(0.0001, start);
-    env.gain.exponentialRampToValueAtTime(peak, start + attack);
-    env.gain.setValueAtTime(peak, start + dur);
-    env.gain.exponentialRampToValueAtTime(0.0001, start + dur + release);
+    // Entrada e saída em curva de seno/cosseno: num cruzamento, um pad some enquanto o outro
+    // entra e o volume somado fica constante (sem buraco nem pulo no meio)
+    env.gain.setValueCurveAtTime(fadeCurve(peak, true), start, attack);
+    env.gain.setValueCurveAtTime(fadeCurve(peak, false), start + Math.max(dur, attack + 0.01), release);
     filter.connect(env);
     env.connect(dest);
     for (const detune of [-8, 8]) {
@@ -1859,11 +1865,13 @@ function startPractice(path, card, plan) {
   }
   const end = t;
   // Pad do tom: segura o tom da música atual (desde a contagem, como se ela estivesse tocando)
-  // e passa para o tom novo quando a próxima música começa, um sumindo enquanto o outro entra
+  // e passa para o tom novo num fade longo (cerca de 1 compasso) centrado no começo da próxima
   const newSongAt = segments[segments.length - 1].start;
+  const fade = Math.max(bar, 3);
   if ($("modPad").checked) {
-    synthPad(ctx, keyPadMidis(plan.fromKey), t0, newSongAt - t0, music, { attack: 1.2, release: 2 });
-    synthPad(ctx, keyPadMidis(plan.toKey), newSongAt - 0.3, end - newSongAt + 0.3, music, { attack: 1.5, release: 2.5 });
+    const fadeStart = newSongAt - fade / 2;
+    synthPad(ctx, keyPadMidis(plan.fromKey), t0, fadeStart - t0, music, { attack: 2, release: fade });
+    synthPad(ctx, keyPadMidis(plan.toKey), fadeStart, end - fadeStart, music, { attack: fade, release: 3 });
   }
 
   card.classList.add("practicing");
@@ -1888,12 +1896,12 @@ function startPractice(path, card, plan) {
       practiceText.textContent = barIdx === 0
         ? "Contagem: " + (inBar + 1)
         : seg ? "Compasso " + barIdx + " de " + (totalBars - 1) + " · " + seg.chord + (seg.index === 0 ? " (fim da música atual)" : seg.index === segments.length - 1 ? " (começo da próxima)" : " (transição)") : "";
-      if ($("modPad").checked) practiceText.textContent += " · pad em " + (now >= newSongAt ? plan.toKey : plan.fromKey);
+      if ($("modPad").checked) practiceText.textContent += " · pad em " + (now >= newSongAt + fade / 2 ? plan.toKey : now >= newSongAt - fade / 2 ? plan.fromKey + " → " + plan.toKey : plan.fromKey);
     }
     if (now < end + 0.3) practice.raf = requestAnimationFrame(tick);
   };
   practice.raf = requestAnimationFrame(tick);
-  practice.timer = setTimeout(stopPractice, (end - ctx.currentTime + 2.6) * 1000); // deixa o pad terminar de soar
+  practice.timer = setTimeout(stopPractice, (end - ctx.currentTime + 3.2) * 1000); // deixa o pad terminar de soar
 }
 $("practiceStop").addEventListener("click", stopPractice);
 
