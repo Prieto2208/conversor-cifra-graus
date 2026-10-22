@@ -15,6 +15,10 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 - Registro de cifras (com login): salvar, buscar, abrir para editar e excluir cifras, guardadas no Supabase
 - A conversão roda no navegador; só as cifras que você salva vão para o banco
 
+## Descobrir tom
+
+Aba que escuta pelo microfone e mostra o tom mais provável da música (e o relativo), a nota que está soando e quanto cada nota apareceu. Usa o método de Krumhansl-Schmuckler. O áudio é analisado só no aparelho, nada é gravado ou enviado. O botão "Levar este tom para o conversor" ajusta Tom e Modo do conversor.
+
 ## Como usar
 
 Abra a página, cole a cifra na caixa da esquerda e copie ou baixe o resultado da direita.
