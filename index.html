@@ -189,7 +189,10 @@
   .meter span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.3s; }
   .key-hint { font-size: 0.85rem; color: var(--muted); }
   .key-now { text-align: center; }
-  .key-now strong { color: var(--chord); font-size: 1.2rem; }
+  .key-now strong { color: var(--chord); font-size: 1.6rem; }
+  .chord-degree { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .key-history { text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 0.9rem; color: var(--muted); min-height: 1.4em; overflow-wrap: anywhere; }
+  .key-history b { color: var(--ink); font-weight: 600; }
   .chroma { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 120px; }
   .chroma div { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
   .chroma i { display: block; width: 100%; background: var(--line); border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.2s; }
@@ -318,7 +321,9 @@
         <div class="key-hint" id="keyHint">Clique em "Começar a escutar" e toque por uns 15 segundos.</div>
       </div>
 
-      <div class="key-now">Nota mais forte agora: <strong id="noteNow">—</strong></div>
+      <div class="key-now">Acorde agora: <strong id="chordNow">—</strong> <span class="chord-degree" id="chordDegree"></span></div>
+      <div class="key-history" id="chordHistory" aria-label="Últimos acordes"></div>
+      <div class="key-label">Notas que mais aparecem</div>
       <div class="chroma" id="chroma" aria-label="Quanto cada nota apareceu"></div>
 
       <div class="btns key-actions">
@@ -585,26 +590,111 @@ function keyLabel(tonic, mode) {
   return mode === "minor" ? MINOR_KEY_NAMES[tonic] + "m" : ROOT_OPTIONS[tonic];
 }
 
-// Espectro (magnitudes por faixa de frequência) -> quanto cada nota soou neste instante.
-// Usa só os picos do espectro que caem perto de uma nota (descarta ruído entre as notas).
-function spectrumToChroma(mags, binHz, minHz = 60, maxHz = 2500) {
+// Espectro (magnitudes por faixa de frequência) -> quanto cada uma das 12 notas soou agora,
+// sem importar a oitava: o mesmo acorde grave, agudo, aberto ou fechado dá o mesmo resultado.
+// Também devolve a nota do baixo (para inversões como G/B).
+function analyzeSpectrum(mags, binHz, minHz = 60, maxHz = 2500) {
   const chroma = new Array(12).fill(0);
-  let peak = 0;
-  for (let i = 1; i < mags.length - 1; i++) if (mags[i] > peak) peak = mags[i];
-  if (!peak) return chroma;
+  let top = 0;
+  for (let i = 1; i < mags.length - 1; i++) if (mags[i] > top) top = mags[i];
+  if (!top) return { chroma, bass: null };
   const from = Math.max(1, Math.floor(minHz / binHz)), to = Math.min(mags.length - 2, Math.ceil(maxHz / binHz));
+
+  // 1. Picos do espectro que caem perto de uma nota (descarta ruído entre as notas)
+  const peaks = [];
   for (let i = from; i <= to; i++) {
     const m = mags[i];
-    if (m < peak * 0.02 || m <= mags[i - 1] || m < mags[i + 1]) continue; // só picos relevantes
-    // Interpolação parabólica para achar a frequência exata do pico
+    if (m < top * 0.02 || m <= mags[i - 1] || m < mags[i + 1]) continue;
     const a = mags[i - 1], c = mags[i + 1];
-    const offset = 0.5 * (a - c) / (a - 2 * m + c || 1);
+    const offset = 0.5 * (a - c) / (a - 2 * m + c || 1); // interpolação: frequência exata do pico
     const freq = (i + offset) * binHz;
     const midi = 69 + 12 * Math.log2(freq / 440);
-    if (Math.abs(midi - Math.round(midi)) > 0.35) continue; // entre duas notas: ignora
-    chroma[((Math.round(midi) % 12) + 12) % 12] += m;
+    if (Math.abs(midi - Math.round(midi)) > 0.35) continue;
+    peaks.push({ freq, mag: m, pc: ((Math.round(midi) % 12) + 12) % 12 });
   }
-  return chroma;
+
+  // 2. Harmônicos: cada corda também soa "notas fantasmas" (3x, 5x, 7x a frequência) que
+  //    confundem o acorde (ex.: o 5º harmônico do Lá soa um Dó#, que faz Am parecer A).
+  //    Pico que é harmônico de outro mais forte abaixo dele perde peso.
+  for (const p of peaks) {
+    for (const q of peaks) {
+      if (q.freq >= p.freq || q.mag < p.mag * 0.5) continue;
+      const n = p.freq / q.freq, k = Math.round(n);
+      if ([3, 5, 6, 7, 9, 10].includes(k) && Math.abs(n - k) / k < 0.025) { p.mag *= 0.25; break; }
+    }
+  }
+
+  // 3. Soma por nota (raiz quadrada: uma nota muito alta não apaga as outras)
+  for (const p of peaks) chroma[p.pc] += Math.sqrt(p.mag);
+
+  // 4. Baixo: o pico forte mais grave abaixo de ~330 Hz
+  const strongest = Math.max(0, ...peaks.map((p) => p.mag));
+  const bassPeak = peaks.find((p) => p.freq < 330 && p.mag > strongest * 0.2);
+  return { chroma, bass: bassPeak ? bassPeak.pc : null };
+}
+
+// Modelos de acorde: intervalos a partir da fundamental e o peso de cada nota
+const CHORD_TYPES = [
+  { type: "maj", suffix: "", notes: [[0, 1], [4, 1], [7, 0.8]] },
+  { type: "min", suffix: "m", notes: [[0, 1], [3, 1], [7, 0.8]] },
+  { type: "7", suffix: "7", notes: [[0, 1], [4, 1], [7, 0.8], [10, 0.7]], penalty: 0.96 },
+  { type: "m7", suffix: "m7", notes: [[0, 1], [3, 1], [7, 0.8], [10, 0.7]], penalty: 0.96 },
+  { type: "dim", suffix: "dim", notes: [[0, 1], [3, 1], [6, 0.9]], penalty: 0.95 },
+];
+
+// Qual acorde melhor explica as notas que estão soando (compara com os 60 modelos)
+function detectChord(chroma, bass) {
+  const norm = Math.hypot(...chroma);
+  if (!norm) return null;
+  let best = null;
+  for (let root = 0; root < 12; root++) {
+    for (const t of CHORD_TYPES) {
+      const tpl = new Array(12).fill(0);
+      for (const [iv, w] of t.notes) tpl[(root + iv) % 12] = w;
+      let dot = 0;
+      for (let i = 0; i < 12; i++) dot += chroma[i] * tpl[i];
+      let score = (dot / (norm * Math.hypot(...tpl))) * (t.penalty || 1);
+      if (bass === root) score += 0.04; // baixo na fundamental reforça
+      if (!best || score > best.score) best = { root, type: t.type, suffix: t.suffix, score };
+    }
+  }
+  const tones = CHORD_TYPES.find((t) => t.type === best.type).notes.map(([iv]) => (best.root + iv) % 12);
+  best.bass = bass !== null && bass !== best.root && tones.includes(bass) ? bass : null; // inversão
+  return best;
+}
+
+// Tom pelos acordes: quanto do tempo os acordes tocados pertencem ao campo harmônico de cada tom
+const FIELD_QUALITY = {
+  major: { 0: "maj", 2: "min", 4: "min", 5: "maj", 7: "maj", 9: "min", 11: "dim" },
+  minor: { 0: "min", 2: "dim", 3: "maj", 5: "min", 7: ["min", "maj"], 8: "maj", 10: "maj" },
+};
+const BASE_QUALITY = { maj: "maj", "7": "maj", min: "min", m7: "min", dim: "dim" };
+function chordKeyScore(chordTime, tonic, mode) {
+  let total = 0, score = 0;
+  for (const [key, time] of Object.entries(chordTime)) {
+    const [root, type] = key.split(":");
+    const d = (Number(root) - tonic + 12) % 12;
+    const want = FIELD_QUALITY[mode][d];
+    const fits = want && [].concat(want).includes(BASE_QUALITY[type]);
+    let w = fits ? 1 : want ? 0.25 : -0.5;           // no campo / grau certo, qualidade outra / fora
+    if (fits && d === 0) w += 0.6;                     // acorde do próprio tom pesa mais
+    if (fits && d === 7 && BASE_QUALITY[type] === "maj") w += 0.2; // dominante
+    score += w * time;
+    total += time;
+  }
+  return total ? score / total : 0;
+}
+
+// Junta as duas pistas (notas e acordes) num ranking dos 24 tons
+function rankKeysCombined(chroma, chordTime) {
+  const byNotes = rankKeys(chroma);
+  const hasChords = Object.keys(chordTime).length > 0;
+  const z = (arr) => { const m = arr.reduce((s, x) => s + x, 0) / arr.length; const sd = Math.sqrt(arr.reduce((s, x) => s + (x - m) ** 2, 0) / arr.length) || 1; return arr.map((x) => (x - m) / sd); };
+  const notesZ = z(byNotes.map((k) => k.score));
+  const chordsZ = hasChords ? z(byNotes.map((k) => chordKeyScore(chordTime, k.tonic, k.mode))) : byNotes.map(() => 0);
+  return byNotes
+    .map((k, i) => ({ ...k, score: hasChords ? 0.4 * notesZ[i] + 0.6 * chordsZ[i] : notesZ[i] }))
+    .sort((a, b) => b.score - a.score);
 }
 
 // ---------- 5. Interface ----------
@@ -916,8 +1006,17 @@ tabKey.addEventListener("click", () => showTab("key"));
 // ---------- 6c. Descobrir o tom pelo microfone ----------
 const listenBtn = $("listenBtn"), listenReset = $("listenReset"), useKeyBtn = $("useKey");
 const keyNameEl = $("keyName"), keyRelEl = $("keyRel"), keyConfEl = $("keyConf"), keyHintEl = $("keyHint");
-const noteNowEl = $("noteNow"), chromaEl = $("chroma"), listenStatus = $("listenStatus");
-const listen = { ctx: null, stream: null, analyser: null, timer: null, total: new Array(12).fill(0), recent: new Array(12).fill(0), frames: 0, best: null };
+const chordNowEl = $("chordNow"), chordDegreeEl = $("chordDegree"), chordHistoryEl = $("chordHistory");
+const chromaEl = $("chroma"), listenStatus = $("listenStatus");
+const listen = {
+  ctx: null, stream: null, analyser: null, timer: null,
+  total: new Array(12).fill(0),   // notas ao longo da música
+  recent: new Array(12).fill(0),  // notas dos últimos instantes (para o acorde de agora)
+  chordTime: {},                  // quanto tempo cada acorde soou ("raiz:tipo" -> tempo)
+  chordNow: null, pending: null, pendingCount: 0, history: [],
+  frames: 0, best: null,
+};
+const CHORD_MIN_SCORE = 0.8;  // abaixo disso o som não parece um acorde claro
 const DECAY = 0.996;          // memória longa: o que tocou há ~30 s ainda conta, mas cada vez menos
 const MIN_FRAMES = 25;        // ~4 s de som antes de arriscar um tom
 
@@ -935,28 +1034,53 @@ const chromaBars = ROOT_OPTIONS.map((name) => {
 function resetListening() {
   listen.total.fill(0);
   listen.recent.fill(0);
-  listen.frames = 0;
-  listen.best = null;
+  Object.assign(listen, { chordTime: {}, chordNow: null, pending: null, pendingCount: 0, history: [], frames: 0, best: null });
   keyNameEl.textContent = "—";
   keyRelEl.textContent = "";
   keyConfEl.style.width = "0";
-  noteNowEl.textContent = "—";
+  chordNowEl.textContent = "—";
+  chordDegreeEl.textContent = "";
+  chordHistoryEl.textContent = "";
   useKeyBtn.disabled = true;
   keyHintEl.textContent = listen.ctx ? "Escutando... toque por uns 15 segundos." : 'Clique em "Começar a escutar" e toque por uns 15 segundos.';
   chromaBars.forEach(({ col, bar }) => { bar.style.height = "2px"; col.className = ""; });
 }
 
+// Nome do acorde escrito pelo tom detectado (Bb em F, A# em B...) e o grau dele nesse tom,
+// com as mesmas regras do conversor (só o grau; qualidade só quando foge do campo).
+function chordDisplay(c, key) {
+  const suffix = c.suffix === "dim" ? "°" : c.suffix;
+  let name, bassName = "";
+  if (key) {
+    const spell = keySpelling(ROOT_OPTIONS[key.tonic], key.mode);
+    name = noteAt(spell, (c.root - spell.semi + 12) % 12);
+    if (c.bass !== null) bassName = noteAt(spell, (c.bass - spell.semi + 12) % 12);
+  } else {
+    name = ROOT_OPTIONS[c.root];
+    if (c.bass !== null) bassName = ROOT_OPTIONS[c.bass];
+  }
+  const full = name + suffix + (bassName ? "/" + bassName : "");
+  if (!key) return { name: full, degree: "" };
+  const minorPlain = key.mode === "minor" && !relativeChk.checked;
+  const settings = {
+    tonic: key.mode === "minor" && !minorPlain ? (key.tonic + 3) % 12 : key.tonic,
+    degrees: minorPlain ? MINOR_DEGREES : MAJOR_DEGREES,
+    field: minorPlain ? MINOR_FIELD : MAJOR_FIELD,
+  };
+  return { name: full, degree: chordToDegree({ root: c.root, suffix: c.suffix, bass: c.bass }, settings) };
+}
+
 function updateKeyDisplay() {
   const max = Math.max(...listen.total) || 1;
-  const nowMax = Math.max(...listen.recent);
-  const nowIdx = nowMax > 0 ? listen.recent.indexOf(nowMax) : -1;
-  noteNowEl.textContent = nowIdx >= 0 ? ROOT_OPTIONS[nowIdx] : "—";
+  const nowNotes = listen.chordNow
+    ? new Set(CHORD_TYPES.find((t) => t.type === listen.chordNow.type).notes.map(([iv]) => (listen.chordNow.root + iv) % 12))
+    : new Set();
 
   let inKey = new Set();
   if (listen.frames >= MIN_FRAMES) {
-    const [best, second] = rankKeys(listen.total);
+    const [best, second] = rankKeysCombined(listen.total, listen.chordTime);
     listen.best = best;
-    const confidence = Math.max(0, Math.min(1, (best.score - second.score) * 6 + (best.score - 0.5)));
+    const confidence = Math.max(0, Math.min(1, (best.score - second.score) / 0.8));
     keyNameEl.textContent = best.mode === "minor" ? MINOR_KEY_NAMES[best.tonic] + " menor" : ROOT_OPTIONS[best.tonic] + " maior";
     const rel = best.mode === "major" ? keyLabel((best.tonic + 9) % 12, "minor") : keyLabel((best.tonic + 3) % 12, "major") + " maior";
     keyRelEl.textContent = "Relativo: " + rel;
@@ -968,9 +1092,28 @@ function updateKeyDisplay() {
   } else if (listen.frames > 0) {
     keyHintEl.textContent = "Escutando... continue tocando.";
   }
+
+  // Acorde de agora e histórico, com o grau no tom detectado
+  const key = listen.frames >= MIN_FRAMES ? listen.best : null;
+  if (listen.chordNow) {
+    const d = chordDisplay(listen.chordNow, key);
+    chordNowEl.textContent = d.name;
+    chordDegreeEl.textContent = d.degree ? "(" + d.degree + ")" : "";
+  } else {
+    chordNowEl.textContent = "—";
+    chordDegreeEl.textContent = "";
+  }
+  chordHistoryEl.replaceChildren(...listen.history.flatMap((c, i) => {
+    const d = chordDisplay(c, key);
+    const b = document.createElement("b");
+    b.textContent = d.name;
+    const parts = [b, document.createTextNode(d.degree ? " (" + d.degree + ")" : "")];
+    return i ? [document.createTextNode("  →  "), ...parts] : parts;
+  }));
+
   chromaBars.forEach(({ col, bar }, i) => {
     bar.style.height = Math.max(2, Math.round((listen.total[i] / max) * 100)) + "%";
-    col.className = i === nowIdx ? "now" : inKey.has(i) ? "in-key" : "";
+    col.className = nowNotes.has(i) ? "now" : inKey.has(i) ? "in-key" : "";
   });
 }
 
@@ -981,6 +1124,8 @@ function analyseFrame() {
   const rms = Math.sqrt(time.reduce((s, x) => s + x * x, 0) / time.length);
   if (rms < 0.005) { // silêncio: não conta
     listen.recent.fill(0);
+    listen.chordNow = null;
+    listen.pending = null;
     listenStatus.textContent = "Silêncio... toque ou aproxime o som do microfone.";
     updateKeyDisplay();
     return;
@@ -989,13 +1134,35 @@ function analyseFrame() {
   const db = new Float32Array(analyser.frequencyBinCount);
   analyser.getFloatFrequencyData(db);
   const mags = Array.from(db, (d) => (Number.isFinite(d) ? 10 ** (d / 20) : 0));
-  const frame = spectrumToChroma(mags, ctx.sampleRate / analyser.fftSize);
+  const { chroma: frame, bass } = analyzeSpectrum(mags, ctx.sampleRate / analyser.fftSize);
   const sum = frame.reduce((s, x) => s + x, 0);
   if (!sum) return;
   for (let i = 0; i < 12; i++) {
     const v = frame[i] / sum;
     listen.total[i] = listen.total[i] * DECAY + v;
-    listen.recent[i] = listen.recent[i] * 0.6 + v * 0.4; // nota "de agora": média bem curta
+    listen.recent[i] = listen.recent[i] * 0.5 + v * 0.5; // média bem curta: o que soa agora
+  }
+  for (const k in listen.chordTime) listen.chordTime[k] *= DECAY;
+
+  // Acorde de agora: só aceita quando o mesmo acorde aparece 2 vezes seguidas (~0,3 s),
+  // para não piscar na troca de acorde ou numa nota de passagem
+  const c = detectChord(listen.recent, bass);
+  if (c && c.score >= CHORD_MIN_SCORE) {
+    const id = c.root + ":" + c.type + ":" + c.bass;
+    listen.pendingCount = listen.pending === id ? listen.pendingCount + 1 : 1;
+    listen.pending = id;
+    if (listen.pendingCount >= 2) {
+      listen.chordNow = c;
+      const key = c.root + ":" + c.type;
+      listen.chordTime[key] = (listen.chordTime[key] || 0) + 1;
+      const last = listen.history[listen.history.length - 1];
+      if (!last || last.root !== c.root || last.type !== c.type || last.bass !== c.bass) {
+        listen.history.push(c);
+        if (listen.history.length > 8) listen.history.shift();
+      }
+    }
+  } else {
+    listen.pending = null;
   }
   listen.frames++;
   updateKeyDisplay();

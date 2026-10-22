@@ -17,7 +17,7 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 
 ## Descobrir tom
 
-Aba que escuta pelo microfone e mostra o tom mais provável da música (e o relativo), a nota que está soando e quanto cada nota apareceu. Usa o método de Krumhansl-Schmuckler. O áudio é analisado só no aparelho, nada é gravado ou enviado. O botão "Levar este tom para o conversor" ajusta Tom e Modo do conversor.
+Aba que escuta pelo microfone e reconhece os **acordes** (em qualquer região, aberto ou fechado, com inversões), mostra o acorde de agora com o grau, o histórico dos últimos acordes e o tom mais provável (e o relativo). O tom vem dos acordes tocados (campo harmônico) junto com as notas (Krumhansl-Schmuckler); harmônicos são filtrados. O áudio é analisado só no aparelho, nada é gravado ou enviado. O botão "Levar este tom para o conversor" ajusta Tom e Modo do conversor.
 
 ## Como usar
 
