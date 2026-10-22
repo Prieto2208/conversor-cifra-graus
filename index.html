@@ -213,6 +213,22 @@
   .map td:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
   .map th small + small { margin-top: 1px; }
   .map tr.spacer td { background: transparent; border: 0; padding: 2px; cursor: default; }
+  .map td.selected { background: var(--bg); border-color: var(--deg); box-shadow: 0 0 0 2px var(--deg); }
+  .map tr.tip-row td { background: transparent; border: 0; padding: 0; cursor: default; text-align: left; }
+  .tip-card {
+    background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--deg);
+    border-radius: 8px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.45;
+  }
+  .tip-card p { margin: 6px 0; }
+  .tip-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tip-head strong { color: var(--deg); }
+  .tip-close { padding: 2px 10px; font-size: 0.85rem; }
+  .tip-sub { font-weight: 600; margin-bottom: 2px; }
+  .tip-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .tip-card li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tip-card li button { padding: 2px 10px; font-size: 0.85rem; }
+  .tip-card li span { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+  .tip-warn { color: var(--chord); }
   .map thead th { text-align: center; font-size: 0.75rem; color: var(--muted); font-weight: 600; white-space: normal; line-height: 1.2; }
   .map thead th b { display: block; color: var(--ink); font-size: 0.85rem; }
 
@@ -737,6 +753,62 @@ function outsideChords(tonicName) {
   });
 }
 
+// Dicas de uso dos acordes de fora do campo: onde costumam aparecer, exemplos (em graus)
+// e as notas da melodia que batem com o acorde (graus da escala maior)
+const OUTSIDE_TIPS = {
+  b3M: {
+    when: "Dá um ar épico, de rock. Costuma aparecer de passagem, logo antes do 4 ou do 5, ou fechando uma frase.",
+    examples: [["1", "b3M", "4", "1"], ["b3M", "4", "1"]],
+    clash: ["3", "7"],
+  },
+  "4m": {
+    when: "O empréstimo mais usado em louvor e MPB. Vem logo depois do 4 maior e dá um efeito emotivo antes de voltar ao 1.",
+    examples: [["4", "4m", "1"], ["1", "4", "4m", "1"]],
+    clash: ["6"],
+  },
+  b6M: {
+    when: "Som grandioso. Muito usado em finais e viradas, subindo em degraus até o 1.",
+    examples: [["b6M", "b7M", "1"], ["1", "b6M", "b7M", "1"]],
+    clash: ["3", "6"],
+  },
+  b7M: {
+    when: "O mais comum no pop e no rock: de passagem antes do 4 ou do 1, ou fechando a música (b7M → 1).",
+    examples: [["1", "b7M", "4", "1"], ["4", "b7M", "1"]],
+    clash: ["7"],
+  },
+  "2M": {
+    when: "Dominante do 5: prepara o 5 e precisa ir para ele logo em seguida. Use no lugar do 2m quando quiser \"puxar\" mais forte.",
+    examples: [["1", "2M", "5", "1"], ["2M", "5", "1"]],
+    clash: ["4"],
+  },
+  "3M": {
+    when: "Dominante do 6: prepara o 6m e precisa ir para ele logo em seguida. Com sétima (3M com 7) fica ainda mais forte.",
+    examples: [["1", "3M", "6", "4"], ["3M", "6", "2", "5"]],
+    clash: ["5"],
+  },
+  "6M": {
+    when: "Dominante do 2: prepara o 2m e precisa ir para ele logo em seguida. Abre a sequência 6 → 2 → 5 → 1.",
+    examples: [["6M", "2", "5", "1"], ["1", "6M", "2", "5"]],
+    clash: ["1"],
+  },
+};
+
+// Monta a dica de um acorde de fora do campo no tom pedido (ex.: "b7M" em G)
+function outsideTip(tonicName, label) {
+  const scale = majorScale(tonicName);
+  const field = scale.map((n, i) => n + FIELD_CHORDS[i]);
+  const out = Object.fromEntries(outsideChords(tonicName).map((c) => [c.label, c]));
+  const tip = OUTSIDE_TIPS[label];
+  const chordOf = (token) => (out[token] ? out[token].chord : field[Number(token) - 1]);
+  const c = out[label];
+  return {
+    label, chord: c.chord, group: c.group, leadsTo: c.leadsTo || null,
+    when: tip.when,
+    examples: tip.examples.map((seq) => ({ degrees: seq.join(" → "), chords: seq.map(chordOf).join(" → "), seq: seq.map(chordOf) })),
+    clash: tip.clash.map((d) => ({ degree: d, note: scale[Number(d) - 1] })),
+  };
+}
+
 // Notas (MIDI) para tocar um acorde: baixo na 3ª oitava e a tríade acima
 function chordMidis(name) {
   const m = name.match(/^([A-G])([#b]?)(m|°)?$/);
@@ -1151,7 +1223,7 @@ MAP_KEYS.forEach((k) => mapFocus.add(new Option(k + " maior", k)));
 const MAP_LEGENDS = {
   notes: "Cada linha é uma escala maior; o número em cima de cada bloco é o grau. Ao lado do tom: a armadura (quantos sustenidos ou bemóis ele tem) e o relativo menor, que é o 6º grau.",
   chords: "Acordes do campo harmônico. Em todo tom maior o padrão é o mesmo: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto.",
-  outside: "Acordes de fora do campo mais comuns. Empréstimos do menor (b3M, 4m, b6M, b7M) vêm do tom menor com a mesma tônica e dão cor à música. Dominantes secundários (2M, 3M, 6M) são acordes maiores que \"puxam\" para outro grau do campo: o 2M leva ao 5, o 3M leva ao 6, o 6M leva ao 2. São as marcações M e m que o conversor mostra.",
+  outside: "Acordes de fora do campo mais comuns. Empréstimos do menor (b3M, 4m, b6M, b7M) vêm do tom menor com a mesma tônica e dão cor à música. Dominantes secundários (2M, 3M, 6M) são acordes maiores que \"puxam\" para outro grau do campo: o 2M leva ao 5, o 3M leva ao 6, o 6M leva ao 2. São as marcações M e m que o conversor mostra. Toque num acorde para ouvir e ver quando usar.",
 };
 const ORDER_LEGENDS = {
   chromatic: "",
@@ -1224,8 +1296,8 @@ function renderMap() {
         for (const c of outsideChords(key)) {
           tr.append(mapCell({
             label: c.label, text: c.chord, color: c.leadsTo ? "var(--deg5)" : "var(--deg3)",
-            play: { chord: c.chord },
-            title: c.label + " em " + key + " maior: " + c.chord + (c.leadsTo ? " (leva ao " + c.leadsTo + ")" : " (empréstimo do menor)"),
+            play: { chord: c.chord, tipKey: key, tipLabel: c.label },
+            title: c.label + " em " + key + " maior: " + c.chord + (c.leadsTo ? " (leva ao " + c.leadsTo + ")" : " (empréstimo do menor)") + ". Toque para ouvir e ver quando usar.",
           }));
         }
       } else {
@@ -1248,11 +1320,82 @@ function renderMap() {
   mapOrderLegend.textContent = ORDER_LEGENDS[mapOrder.value];
 }
 
+// Toca uma sequência de acordes, um por vez
+function playProgression(chords, step = 0.9) {
+  chords.forEach((ch, i) => playMidis(chordMidis(ch), { when: i * step, strum: 0.03, dur: step + 0.15 }));
+}
+
+// Dica de uso de um acorde de fora do campo, numa linha logo abaixo do tom
+function showOutsideTip(td, key, label) {
+  const row = td.closest("tr");
+  const old = mapTable.querySelector("tr.tip-row");
+  const same = old && old.dataset.for === key + ":" + label;
+  if (old) old.remove();
+  mapTable.querySelectorAll("td.selected").forEach((c) => c.classList.remove("selected"));
+  if (same) return; // tocar de novo no mesmo acorde fecha a dica
+  td.classList.add("selected");
+
+  const t = outsideTip(key, label);
+  const tr = document.createElement("tr");
+  tr.className = "tip-row";
+  tr.dataset.for = key + ":" + label;
+  const cell = document.createElement("td");
+  cell.colSpan = 8;
+  const card = document.createElement("div");
+  card.className = "tip-card";
+  card.style.setProperty("--deg", t.leadsTo ? "var(--deg5)" : "var(--deg3)");
+
+  const head = document.createElement("div");
+  head.className = "tip-head";
+  const h = document.createElement("strong");
+  h.textContent = t.label + " em " + key + " maior = " + t.chord + (t.leadsTo ? " · dominante (leva ao " + t.leadsTo + ")" : " · empréstimo do menor");
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "ghost tip-close";
+  close.textContent = "Fechar";
+  close.addEventListener("click", () => { tr.remove(); td.classList.remove("selected"); td.focus(); });
+  head.append(h, close);
+
+  const when = document.createElement("p");
+  when.textContent = t.when;
+
+  const exTitle = document.createElement("p");
+  exTitle.className = "tip-sub";
+  exTitle.textContent = "Exemplos em " + key + " maior:";
+  const list = document.createElement("ul");
+  for (const ex of t.examples) {
+    const li = document.createElement("li");
+    const play = document.createElement("button");
+    play.type = "button";
+    play.className = "ghost";
+    play.textContent = "Ouvir";
+    play.addEventListener("click", () => playProgression(ex.seq));
+    const txt = document.createElement("span");
+    const deg = document.createElement("b");
+    deg.textContent = ex.degrees;
+    txt.append(deg, document.createTextNode("  =  " + ex.chords));
+    li.append(play, txt);
+    list.append(li);
+  }
+
+  const clash = document.createElement("p");
+  clash.className = "tip-warn";
+  clash.textContent = "Cuidado com a melodia: se ela estiver cantando "
+    + t.clash.map((c) => c.note + " (grau " + c.degree + ")").join(" ou ")
+    + ", a nota bate com o " + t.chord + ". Nesse momento, prefira o acorde do campo.";
+
+  card.append(head, when, exTitle, list, clash);
+  cell.append(card);
+  tr.append(cell);
+  row.after(tr);
+}
+
 function playCell(td) {
   const p = JSON.parse(td.dataset.play);
   playMidis(p.chord ? chordMidis(p.chord) : [p.midi], { strum: p.chord ? 0.03 : 0 });
   td.classList.add("playing");
   setTimeout(() => td.classList.remove("playing"), 150);
+  if (p.tipLabel) showOutsideTip(td, p.tipKey, p.tipLabel);
 }
 mapTable.addEventListener("click", (e) => { const td = e.target.closest("td[data-play]"); if (td) playCell(td); });
 mapTable.addEventListener("keydown", (e) => {
