@@ -213,24 +213,34 @@
   .map td:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
   .map th small + small { margin-top: 1px; }
   .map tr.spacer td { background: transparent; border: 0; padding: 2px; cursor: default; }
-  .map td.selected { background: var(--bg); border-color: var(--deg); box-shadow: 0 0 0 2px var(--deg); }
-  .map tr.tip-row td { background: transparent; border: 0; padding: 0; cursor: default; text-align: left; }
-  .tip-card {
-    background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--deg);
-    border-radius: 8px; padding: 12px 14px; font-size: 0.9rem; line-height: 1.45;
-  }
-  .tip-card p { margin: 6px 0; }
-  .tip-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .tip-head strong { color: var(--deg); }
-  .tip-close { padding: 2px 10px; font-size: 0.85rem; }
-  .tip-sub { font-weight: 600; margin-bottom: 2px; }
-  .tip-card ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-  .tip-card li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .tip-card li button { padding: 2px 10px; font-size: 0.85rem; }
-  .tip-card li span { font-family: "IBM Plex Mono", ui-monospace, monospace; }
-  .tip-warn { color: var(--chord); }
   .map thead th { text-align: center; font-size: 0.75rem; color: var(--muted); font-weight: 600; white-space: normal; line-height: 1.2; }
   .map thead th b { display: block; color: var(--ink); font-size: 0.85rem; }
+
+  /* Mudar de tom */
+  .mod-swap { align-self: flex-end; }
+  .mod-summary { font-size: 1.05rem; margin: 0 0 14px; }
+  .mod-summary b { color: var(--accent); }
+  .mod-paths, .mod-extra { display: grid; gap: 12px; margin-bottom: 12px; }
+  .mod-card {
+    background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .mod-card h3 { margin: 0 0 10px; font-size: 1rem; }
+  .mod-card p { margin: 8px 0 0; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
+  .mod-card p b { color: var(--ink); }
+  .mod-seq { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .mod-seq .arrow { color: var(--muted); }
+  .chip {
+    display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px;
+    background: var(--bg); color: var(--ink); border: 1px solid var(--line); padding: 6px 10px;
+  }
+  .chip strong { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 1.1rem; }
+  .chip small { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
+  .chip.from { border-color: var(--deg4); }
+  .chip.to { border-color: var(--deg1); }
+  .chip.pass strong { color: var(--chord); }
+  .mod-play { margin-top: 10px; }
+  .mod-card.info { border-left-color: var(--deg2); }
 
   /* Treino */
   .score { margin-left: auto; font-size: 0.95rem; }
@@ -287,8 +297,6 @@
     .map td .note { font-size: 0.78rem; letter-spacing: -0.02em; }
     .map thead th { font-size: 0; } /* no celular, só o rótulo (b3M, 2M...) no cabeçalho */
     .map thead th b { font-size: 0.7rem; }
-    .tip-card { padding: 10px; font-size: 0.85rem; }
-    .tip-card li span { font-size: 0.8rem; overflow-wrap: anywhere; }
     .score { margin-left: 0; flex-basis: 100%; }
     .train-card { padding: 18px 14px; }
     .train-question { font-size: 1.1rem; }
@@ -326,6 +334,7 @@
   <nav class="tabs" role="tablist" aria-label="Ferramentas">
     <button role="tab" id="tabConv" aria-controls="viewConv" aria-selected="true">Conversor</button>
     <button role="tab" id="tabMap" aria-controls="viewMap" aria-selected="false">Mapa de graus</button>
+    <button role="tab" id="tabMod" aria-controls="viewMod" aria-selected="false">Mudar de tom</button>
     <button role="tab" id="tabTrain" aria-controls="viewTrain" aria-selected="false">Treino</button>
   </nav>
 
@@ -389,7 +398,6 @@
         <div class="segmented" role="group" aria-labelledby="mapShowLabel">
           <button type="button" data-map-mode="notes" aria-pressed="true">Notas</button>
           <button type="button" data-map-mode="chords" aria-pressed="false">Campo harmônico</button>
-          <button type="button" data-map-mode="outside" aria-pressed="false">Fora do campo</button>
         </div>
       </div>
       <div class="field">
@@ -413,6 +421,23 @@
     </div>
     <p class="map-legend" id="mapLegend"></p>
     <p class="map-legend" id="mapOrderLegend"></p>
+  </section>
+
+  <section id="viewMod" role="tabpanel" aria-labelledby="tabMod" hidden>
+    <div class="map-controls">
+      <div class="field">
+        <label for="modFrom">Tom da música atual</label>
+        <select id="modFrom"></select>
+      </div>
+      <button type="button" class="ghost mod-swap" id="modSwap" title="Inverter os tons">⇄ Inverter</button>
+      <div class="field">
+        <label for="modTo">Tom da próxima música</label>
+        <select id="modTo"></select>
+      </div>
+    </div>
+    <p class="mod-summary" id="modSummary" aria-live="polite"></p>
+    <div class="mod-paths" id="modPaths"></div>
+    <div class="mod-extra" id="modExtra"></div>
   </section>
 
   <section id="viewTrain" role="tabpanel" aria-labelledby="tabTrain" hidden>
@@ -736,93 +761,74 @@ function mapOrderGroups(order) {
   return [MAP_KEYS];
 }
 
-// Acordes de fora do campo mais usados num tom maior
-//  - empréstimos do tom menor (mesma tônica): b3, 4m, b6, b7
-//  - dominantes secundários: acorde maior que "leva" a outro grau do campo
-const OUTSIDE_CHORDS = [
-  { label: "b3M", degree: 3, flat: true, q: "", group: "Empréstimo do menor" },
-  { label: "4m", degree: 4, flat: false, q: "m", group: "Empréstimo do menor" },
-  { label: "b6M", degree: 6, flat: true, q: "", group: "Empréstimo do menor" },
-  { label: "b7M", degree: 7, flat: true, q: "", group: "Empréstimo do menor" },
-  { label: "2M", degree: 2, flat: false, q: "", group: "Dominante", leadsTo: "5" },
-  { label: "3M", degree: 3, flat: false, q: "", group: "Dominante", leadsTo: "6" },
-  { label: "6M", degree: 6, flat: false, q: "", group: "Dominante", leadsTo: "2" },
-];
-function lowerNote(note) {
-  if (note.endsWith("#")) return note.slice(0, -1);
-  const flat = note + "b";
-  // Fb, Cb ou dobrado bemol: usa o nome simples (E, B, A...)
-  return /bb$|^Fb$|^Cb$/.test(flat) ? FLAT_NAMES[(semitoneOf(note) + 11) % 12] : flat;
-}
-function outsideChords(tonicName) {
-  const scale = majorScale(tonicName);
-  return OUTSIDE_CHORDS.map((c) => {
-    const base = scale[c.degree - 1];
-    return { ...c, chord: (c.flat ? lowerNote(base) : base) + c.q };
+// ---------- Mudar de tom (passar de uma música para a próxima sem parar) ----------
+const fieldOf = (key) => majorScale(key).map((n, i) => n + FIELD_CHORDS[i]);
+// Notas (0-11) de um acorde, ex.: "A7" -> A C# E G
+const chordTones = (name) => new Set(chordMidis(name).map((m) => m % 12));
+// Mesmo acorde mesmo com nomes diferentes (F# e Gb): compara fundamental e qualidade
+const chordId = (name) => { const m = name.match(/^([A-G][#b]?)(.*)$/); return semitoneOf(m[1]) + ":" + m[2]; };
+const STEP_NAMES = ["", "meio tom", "um tom", "um tom e meio", "dois tons", "dois tons e meio", "três tons"];
+
+// Caminhos para sair do tom "fromKey" e entrar no "toKey" (tons maiores)
+function transitionPlan(fromKey, toKey) {
+  const to = majorScale(toKey);
+  const fromField = fieldOf(fromKey), toField = fieldOf(toKey);
+  const I1 = fromField[0], I2 = toField[0];
+  const V7 = to[4] + "7", ii7 = to[1] + "m7";
+  const up = (semitoneOf(toKey) - semitoneOf(fromKey) + 12) % 12;
+  if (up === 0) return { same: true, fromKey, toKey, paths: [] };
+  const distance = up <= 6 ? "sobe " + STEP_NAMES[up] : "desce " + STEP_NAMES[12 - up];
+
+  const paths = [];
+  paths.push({
+    title: "Pelo dominante (o mais rápido)",
+    seq: [I1, V7, I2],
+    why: `O ${V7} é o 5 de ${toKey} e "puxa" para o ${I2}. Funciona de qualquer tom para qualquer tom: no último compasso da música, toque o ${V7} e entre na próxima.`
+      + (up === 1 || up === 2 ? ` Como o próximo tom ${distance}, é a famosa subida de tom de final de música: dá energia sem precisar parar.` : "")
+      + (up === 5 ? ` Atalho: o seu ${I1} já é o 5 de ${toKey}, então basta colocar a sétima nele.` : ""),
   });
-}
+  paths.push({
+    title: "2-5-1 do novo tom (o mais suave)",
+    seq: [I1, ii7, V7, I2],
+    why: `${ii7} e ${V7} são o 2 e o 5 de ${toKey}. A banda "conversa" até o novo tom em vez de pular direto.`,
+  });
 
-// Dicas de uso dos acordes de fora do campo: onde costumam aparecer, exemplos (em graus)
-// e as notas da melodia que batem com o acorde (graus da escala maior)
-const OUTSIDE_TIPS = {
-  b3M: {
-    when: "Dá um ar épico, de rock. Costuma aparecer de passagem, logo antes do 4 ou do 5, ou fechando uma frase.",
-    examples: [["1", "b3M", "4", "1"], ["b3M", "4", "1"]],
-    clash: ["3", "7"],
-  },
-  "4m": {
-    when: "O empréstimo mais usado em louvor e MPB. Vem logo depois do 4 maior e dá um efeito emotivo antes de voltar ao 1.",
-    examples: [["4", "4m", "1"], ["1", "4", "4m", "1"]],
-    clash: ["6"],
-  },
-  b6M: {
-    when: "Som grandioso. Muito usado em finais e viradas, subindo em degraus até o 1.",
-    examples: [["b6M", "b7M", "1"], ["1", "b6M", "b7M", "1"]],
-    clash: ["3", "6"],
-  },
-  b7M: {
-    when: "O mais comum no pop e no rock: de passagem antes do 4 ou do 1, ou fechando a música (b7M → 1).",
-    examples: [["1", "b7M", "4", "1"], ["4", "b7M", "1"]],
-    clash: ["7"],
-  },
-  "2M": {
-    when: "Dominante do 5: prepara o 5 e precisa ir para ele logo em seguida. Use no lugar do 2m quando quiser \"puxar\" mais forte.",
-    examples: [["1", "2M", "5", "1"], ["2M", "5", "1"]],
-    clash: ["4"],
-  },
-  "3M": {
-    when: "Dominante do 6: prepara o 6m e precisa ir para ele logo em seguida. Com sétima (3M com 7) fica ainda mais forte.",
-    examples: [["1", "3M", "6", "4"], ["3M", "6", "2", "5"]],
-    clash: ["5"],
-  },
-  "6M": {
-    when: "Dominante do 2: prepara o 2m e precisa ir para ele logo em seguida. Abre a sequência 6 → 2 → 5 → 1.",
-    examples: [["6M", "2", "5", "1"], ["1", "6M", "2", "5"]],
-    clash: ["1"],
-  },
-};
+  // Acorde pivô: existe nos dois campos harmônicos; o melhor é o que vira 2 ou 4 no novo tom
+  const toIds = toField.map(chordId);
+  const commons = fromField
+    .map((c, i) => ({ chord: c, fromDeg: i + 1, toDeg: toIds.indexOf(chordId(c)) + 1 }))
+    .filter((c) => c.toDeg > 0);
+  const prefer = [2, 4, 6, 3, 5, 1, 7];
+  const pivots = commons.filter((c) => c.fromDeg !== 1).sort((a, b) => prefer.indexOf(a.toDeg) - prefer.indexOf(b.toDeg));
+  if (pivots.length) {
+    const p = pivots[0];
+    const pivotName = toField[p.toDeg - 1]; // escrito como no novo tom
+    paths.push({
+      title: "Por um acorde em comum (pivô)",
+      seq: [I1, pivotName, V7, I2],
+      why: `O ${pivotName} existe nos dois tons: é o ${p.fromDeg} em ${fromKey} e o ${p.toDeg} em ${toKey}. Ele soa "de casa" para a música que está acabando e já prepara a próxima.`,
+    });
+  }
 
-// Monta a dica de um acorde de fora do campo no tom pedido (ex.: "b7M" em G)
-function outsideTip(tonicName, label) {
-  const scale = majorScale(tonicName);
-  const field = scale.map((n, i) => n + FIELD_CHORDS[i]);
-  const out = Object.fromEntries(outsideChords(tonicName).map((c) => [c.label, c]));
-  const tip = OUTSIDE_TIPS[label];
-  const chordOf = (token) => (out[token] ? out[token].chord : field[Number(token) - 1]);
-  const c = out[label];
+  // Nota de ligação: nota do acorde atual que também está no acorde de passagem
+  const spell = (pc) => to.find((n) => semitoneOf(n) === pc) || majorScale(fromKey).find((n) => semitoneOf(n) === pc) || FLAT_NAMES[pc];
+  const tonesI1 = chordTones(I1);
+  const linkV7 = [...chordTones(V7)].filter((pc) => tonesI1.has(pc)).map(spell);
+  const linkI2 = [...chordTones(I2)].filter((pc) => tonesI1.has(pc)).map(spell);
+
   return {
-    label, chord: c.chord, group: c.group, leadsTo: c.leadsTo || null,
-    when: tip.when,
-    examples: tip.examples.map((seq) => ({ degrees: seq.join(" → "), chords: seq.map(chordOf).join(" → "), seq: seq.map(chordOf) })),
-    clash: tip.clash.map((d) => ({ degree: d, note: scale[Number(d) - 1] })),
+    same: false, fromKey, toKey, distance, paths, I1, I2, V7,
+    commons: commons.map((c) => ({ ...c, chord: toField[c.toDeg - 1] })),
+    linkV7, linkI2,
   };
 }
 
 // Notas (MIDI) para tocar um acorde: baixo na 3ª oitava e a tríade acima
 function chordMidis(name) {
-  const m = name.match(/^([A-G])([#b]?)(m|°)?$/);
+  const m = name.match(/^([A-G])([#b]?)(m|°)?(7)?$/);
   const root = 48 + noteToSemitone(m[1], m[2]);
   const iv = m[3] === "m" ? [0, 3, 7] : m[3] === "°" ? [0, 3, 6] : [0, 4, 7];
+  if (m[4]) iv.push(10); // sétima menor (A7, Em7)
   return [root, ...iv.map((x) => root + 12 + x)];
 }
 function noteMidi(name, octave = 4) {
@@ -947,7 +953,7 @@ function makeQuestion(fixedKey, rnd = Math.random) {
   const scale = majorScale(key);
   const field = scale.map((n, i) => n + FIELD_CHORDS[i]);
   const k = Math.floor(rnd() * 7);
-  const type = pick(["degreeToNote", "noteToDegree", "degreeToChord", "chordToDegree", "outside"], rnd);
+  const type = pick(["degreeToNote", "noteToDegree", "degreeToChord", "chordToDegree"], rnd);
   if (type === "degreeToNote") {
     return { key, html: `Qual é o grau <b>${k + 1}</b> de <b>${key}</b> maior?`, answer: scale[k], options: withDistractors(scale[k], scale, rnd), explain: `${key} maior: ${scale.join(" ")}` };
   }
@@ -958,13 +964,8 @@ function makeQuestion(fixedKey, rnd = Math.random) {
     const wrongQuality = scale[k] + (FIELD_CHORDS[k] === "m" ? "" : "m");
     return { key, html: `Qual é o acorde do grau <b>${k + 1}</b> no campo de <b>${key}</b>?`, answer: field[k], options: withDistractors(field[k], [wrongQuality, ...field], rnd), explain: `Campo de ${key}: ${field.join(" ")}` };
   }
-  if (type === "chordToDegree") {
-    return { key, html: `No campo de <b>${key}</b>, o acorde <b>${field[k]}</b> é qual grau?`, answer: DEGREE_LABELS[k], options: withDistractors(DEGREE_LABELS[k], DEGREE_LABELS, rnd), explain: `Campo de ${key}: ${field.map((c, i) => (i + 1) + "=" + c).join("  ")}` };
-  }
-  const out = outsideChords(key);
-  const o = pick(out, rnd);
-  const what = o.leadsTo ? `o <b>${o.label}</b> (dominante que leva ao ${o.leadsTo})` : `o <b>${o.label}</b> (empréstimo do menor)`;
-  return { key, html: `Em <b>${key}</b> maior, qual é ${what}?`, answer: o.chord, options: withDistractors(o.chord, [...out.map((x) => x.chord), ...field], rnd), explain: `Fora do campo de ${key}: ${out.map((x) => x.label + "=" + x.chord).join("  ")}` };
+  // chordToDegree
+  return { key, html: `No campo de <b>${key}</b>, o acorde <b>${field[k]}</b> é qual grau?`, answer: DEGREE_LABELS[k], options: withDistractors(DEGREE_LABELS[k], DEGREE_LABELS, rnd), explain: `Campo de ${key}: ${field.map((c, i) => (i + 1) + "=" + c).join("  ")}` };
 }
 
 // ---------- 5. Interface ----------
@@ -1262,6 +1263,7 @@ render();
 const TABS = {
   conv: { tab: $("tabConv"), view: $("viewConv"), lead: $("leadText").textContent },
   map: { tab: $("tabMap"), view: $("viewMap"), lead: "Todas as escalas maiores com o grau de cada nota, para estudar e praticar." },
+  mod: { tab: $("tabMod"), view: $("viewMod"), lead: "Como passar de uma música para a próxima, em outro tom, sem parar a banda." },
   train: { tab: $("tabTrain"), view: $("viewTrain"), lead: "Treine graus, campo harmônico e ouvido." },
 };
 function showTab(name) {
@@ -1332,7 +1334,6 @@ MAP_KEYS.forEach((k) => mapFocus.add(new Option(k + " maior", k)));
 const MAP_LEGENDS = {
   notes: "Cada linha é uma escala maior; o número em cima de cada bloco é o grau. Ao lado do tom: a armadura (quantos sustenidos ou bemóis ele tem) e o relativo menor, que é o 6º grau.",
   chords: "Acordes do campo harmônico. Em todo tom maior o padrão é o mesmo: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto.",
-  outside: "Acordes de fora do campo mais comuns. Empréstimos do menor (b3M, 4m, b6M, b7M) vêm do tom menor com a mesma tônica e dão cor à música. Dominantes secundários (2M, 3M, 6M) são acordes maiores que \"puxam\" para outro grau do campo: o 2M leva ao 5, o 3M leva ao 6, o 6M leva ao 2. São as marcações M e m que o conversor mostra. Toque num acorde para ouvir e ver quando usar.",
 };
 const ORDER_LEGENDS = {
   chromatic: "",
@@ -1362,21 +1363,6 @@ function renderMap() {
   const focus = mapFocus.value;
   const groups = mapOrderGroups(mapOrder.value);
   const parts = [];
-  if (mapMode === "outside") {
-    const thead = document.createElement("thead");
-    const tr = document.createElement("tr");
-    tr.append(document.createElement("th"));
-    for (const c of OUTSIDE_CHORDS) {
-      const th = document.createElement("th");
-      th.scope = "col";
-      const b = document.createElement("b");
-      b.textContent = c.label;
-      th.append(b, document.createTextNode(c.leadsTo ? "leva ao " + c.leadsTo : "empréstimo"));
-      tr.append(th);
-    }
-    thead.append(tr);
-    parts.push(thead);
-  }
   const tbody = document.createElement("tbody");
   groups.forEach((keys, gi) => {
     if (gi) { // espaço entre os grupos de terças
@@ -1401,25 +1387,15 @@ function renderMap() {
       rel.title = "Relativo menor (6º grau)";
       th.append(sig, rel);
       tr.append(th);
-      if (mapMode === "outside") {
-        for (const c of outsideChords(key)) {
-          tr.append(mapCell({
-            label: c.label, text: c.chord, color: c.leadsTo ? "var(--deg5)" : "var(--deg3)",
-            play: { chord: c.chord, tipKey: key, tipLabel: c.label },
-            title: c.label + " em " + key + " maior: " + c.chord + (c.leadsTo ? " (leva ao " + c.leadsTo + ")" : " (empréstimo do menor)") + ". Toque para ouvir e ver quando usar.",
-          }));
-        }
-      } else {
-        scale.forEach((note, k) => {
-          const chords = mapMode === "chords";
-          const text = chords ? note + FIELD_CHORDS[k] : note;
-          tr.append(mapCell({
-            label: String(k + 1), text, color: "var(--deg" + (k + 1) + ")",
-            play: chords ? { chord: text } : { midi: scaleNoteMidi(key, k) },
-            title: "Grau " + (k + 1) + " de " + key + " maior: " + text,
-          }));
-        });
-      }
+      scale.forEach((note, k) => {
+        const chords = mapMode === "chords";
+        const text = chords ? note + FIELD_CHORDS[k] : note;
+        tr.append(mapCell({
+          label: String(k + 1), text, color: "var(--deg" + (k + 1) + ")",
+          play: chords ? { chord: text } : { midi: scaleNoteMidi(key, k) },
+          title: "Grau " + (k + 1) + " de " + key + " maior: " + text,
+        }));
+      });
       tbody.append(tr);
     }
   });
@@ -1434,77 +1410,11 @@ function playProgression(chords, step = 0.9) {
   chords.forEach((ch, i) => playMidis(chordMidis(ch), { when: i * step, strum: 0.03, dur: step + 0.15 }));
 }
 
-// Dica de uso de um acorde de fora do campo, numa linha logo abaixo do tom
-function showOutsideTip(td, key, label) {
-  const row = td.closest("tr");
-  const old = mapTable.querySelector("tr.tip-row");
-  const same = old && old.dataset.for === key + ":" + label;
-  if (old) old.remove();
-  mapTable.querySelectorAll("td.selected").forEach((c) => c.classList.remove("selected"));
-  if (same) return; // tocar de novo no mesmo acorde fecha a dica
-  td.classList.add("selected");
-
-  const t = outsideTip(key, label);
-  const tr = document.createElement("tr");
-  tr.className = "tip-row";
-  tr.dataset.for = key + ":" + label;
-  const cell = document.createElement("td");
-  cell.colSpan = 8;
-  const card = document.createElement("div");
-  card.className = "tip-card";
-  card.style.setProperty("--deg", t.leadsTo ? "var(--deg5)" : "var(--deg3)");
-
-  const head = document.createElement("div");
-  head.className = "tip-head";
-  const h = document.createElement("strong");
-  h.textContent = t.label + " em " + key + " maior = " + t.chord + (t.leadsTo ? " · dominante (leva ao " + t.leadsTo + ")" : " · empréstimo do menor");
-  const close = document.createElement("button");
-  close.type = "button";
-  close.className = "ghost tip-close";
-  close.textContent = "Fechar";
-  close.addEventListener("click", () => { tr.remove(); td.classList.remove("selected"); td.focus(); });
-  head.append(h, close);
-
-  const when = document.createElement("p");
-  when.textContent = t.when;
-
-  const exTitle = document.createElement("p");
-  exTitle.className = "tip-sub";
-  exTitle.textContent = "Exemplos em " + key + " maior:";
-  const list = document.createElement("ul");
-  for (const ex of t.examples) {
-    const li = document.createElement("li");
-    const play = document.createElement("button");
-    play.type = "button";
-    play.className = "ghost";
-    play.textContent = "Ouvir";
-    play.addEventListener("click", () => playProgression(ex.seq));
-    const txt = document.createElement("span");
-    const deg = document.createElement("b");
-    deg.textContent = ex.degrees;
-    txt.append(deg, document.createTextNode("  =  " + ex.chords));
-    li.append(play, txt);
-    list.append(li);
-  }
-
-  const clash = document.createElement("p");
-  clash.className = "tip-warn";
-  clash.textContent = "Cuidado com a melodia: se ela estiver cantando "
-    + t.clash.map((c) => c.note + " (grau " + c.degree + ")").join(" ou ")
-    + ", a nota bate com o " + t.chord + ". Nesse momento, prefira o acorde do campo.";
-
-  card.append(head, when, exTitle, list, clash);
-  cell.append(card);
-  tr.append(cell);
-  row.after(tr);
-}
-
 function playCell(td) {
   const p = JSON.parse(td.dataset.play);
   playMidis(p.chord ? chordMidis(p.chord) : [p.midi], { strum: p.chord ? 0.03 : 0 });
   td.classList.add("playing");
   setTimeout(() => td.classList.remove("playing"), 150);
-  if (p.tipLabel) showOutsideTip(td, p.tipKey, p.tipLabel);
 }
 mapTable.addEventListener("click", (e) => { const td = e.target.closest("td[data-play]"); if (td) playCell(td); });
 mapTable.addEventListener("keydown", (e) => {
@@ -1519,6 +1429,95 @@ mapModeBtns.forEach((btn) => btn.addEventListener("click", () => {
 mapOrder.addEventListener("change", renderMap);
 mapFocus.addEventListener("change", renderMap);
 renderMap();
+
+// ---------- 6f. Mudar de tom ----------
+const modFrom = $("modFrom"), modTo = $("modTo"), modPaths = $("modPaths"), modExtra = $("modExtra"), modSummary = $("modSummary");
+MAP_KEYS.forEach((k) => { modFrom.add(new Option(k + " maior", k)); modTo.add(new Option(k + " maior", k)); });
+modFrom.value = "F"; // exemplo: música em F, a próxima em D
+modTo.value = "D";
+
+// Grau de um acorde no novo tom (ou no tom atual), para mostrar embaixo do acorde
+function chordDegreeLabel(chord, fromKey, toKey, index) {
+  if (index === 0) return "1 em " + fromKey;
+  const base = chord.replace(/7$/, "");
+  const toIdx = fieldOf(toKey).map(chordId).indexOf(chordId(base));
+  if (chord.endsWith("7") && !chord.endsWith("m7")) return "5 em " + toKey; // dominante (A7)
+  if (toIdx >= 0) return (toIdx + 1) + " em " + toKey;
+  const fromIdx = fieldOf(fromKey).map(chordId).indexOf(chordId(base));
+  return fromIdx >= 0 ? (fromIdx + 1) + " em " + fromKey : "";
+}
+
+function modCard(title, cls = "") {
+  const card = document.createElement("div");
+  card.className = "mod-card " + cls;
+  const h = document.createElement("h3");
+  h.textContent = title;
+  card.append(h);
+  return card;
+}
+const modP = (text) => { const p = document.createElement("p"); p.textContent = text; return p; };
+
+function renderMod() {
+  const plan = transitionPlan(modFrom.value, modTo.value);
+  if (plan.same) {
+    modSummary.textContent = "As duas músicas estão no mesmo tom: é só emendar.";
+    modPaths.replaceChildren();
+    modExtra.replaceChildren();
+    return;
+  }
+  modSummary.innerHTML = `De <b>${plan.fromKey}</b> para <b>${plan.toKey}</b>: o tom ${plan.distance}.`; // montado pelo site
+  modPaths.replaceChildren(...plan.paths.map((p) => {
+    const card = modCard(p.title);
+    const seq = document.createElement("div");
+    seq.className = "mod-seq";
+    p.seq.forEach((chord, i) => {
+      if (i) { const a = document.createElement("span"); a.className = "arrow"; a.textContent = "→"; seq.append(a); }
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip " + (i === 0 ? "from" : i === p.seq.length - 1 ? "to" : "pass");
+      const name = document.createElement("strong");
+      name.textContent = chord;
+      const deg = document.createElement("small");
+      deg.textContent = chordDegreeLabel(chord, plan.fromKey, plan.toKey, i);
+      chip.append(name, deg);
+      chip.title = "Ouvir " + chord;
+      chip.addEventListener("click", () => playMidis(chordMidis(chord), { strum: 0.03 }));
+      seq.append(chip);
+    });
+    const play = document.createElement("button");
+    play.type = "button";
+    play.className = "ghost mod-play";
+    play.textContent = "Ouvir caminho";
+    play.addEventListener("click", () => playProgression(p.seq, 1.1));
+    card.append(seq, modP(p.why), play);
+    return card;
+  }));
+
+  const extras = [];
+  const link = plan.linkV7.length ? plan.linkV7 : plan.linkI2;
+  const linkChord = plan.linkV7.length ? plan.V7 : plan.I2;
+  const linkCard = modCard("Nota de ligação", "info");
+  linkCard.append(modP(link.length
+    ? `Segure ${link.length > 1 ? "uma destas notas" : "a nota"} ${link.join(" ou ")}: ${link.length > 1 ? "elas estão" : "ela está"} no ${plan.I1} (acorde atual) e no ${linkChord}. Quem está no teclado, na guitarra ou cantando pode sustentar essa nota enquanto a banda troca: a mudança fica "costurada".`
+    : `O ${plan.I1} não tem nota em comum com o ${plan.V7} nem com o ${plan.I2}. Nesse caso, uma pausa curta de toda a banda (um "breque") antes do ${plan.V7} também funciona bem.`));
+  extras.push(linkCard);
+
+  const commonCard = modCard("Acordes em comum entre os dois tons", "info");
+  commonCard.append(modP(plan.commons.length
+    ? plan.commons.map((c) => `${c.chord} (${c.fromDeg} em ${plan.fromKey}, ${c.toDeg} em ${plan.toKey})`).join(" · ")
+      + ". Qualquer um deles pode ser o último acorde da música atual, já preparando a próxima."
+    : `${plan.fromKey} e ${plan.toKey} não têm nenhum acorde em comum. Use o caminho pelo dominante ou o 2-5-1.`));
+  extras.push(commonCard);
+
+  const tipCard = modCard("Dica para a banda", "info");
+  tipCard.append(modP(`Combine um sinal (o líder fala o tom ou mostra com a mão) e use o caminho pelo dominante no último compasso da música: todo mundo toca o ${plan.V7} junto e entra no ${plan.I2}.`));
+  extras.push(tipCard);
+  modExtra.replaceChildren(...extras);
+}
+modFrom.addEventListener("change", renderMod);
+modTo.addEventListener("change", renderMod);
+$("modSwap").addEventListener("click", () => { [modFrom.value, modTo.value] = [modTo.value, modFrom.value]; renderMod(); });
+renderMod();
 
 // ---------- 6e. Treino ----------
 const trainKeySel = $("trainKey"), earSoundSel = $("earSound"), trainQuestionEl = $("trainQuestion");

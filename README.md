@@ -17,11 +17,15 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 
 ## Mapa de graus
 
-Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, Db maior tem Gb), o grau em cima de cada nota, a armadura e o relativo menor de cada tom. Três modos: notas, acordes do campo harmônico (1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto) e fora do campo (empréstimos b3M, 4m, b6M, b7M e dominantes secundários 2M, 3M, 6M). Ordem pelas notas, ciclo das quintas, ciclo das quartas, terças maiores ou terças menores/sextas. Tocar num bloco toca a nota ou o acorde (som gerado no navegador).
+Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, Db maior tem Gb), o grau em cima de cada nota, a armadura e o relativo menor de cada tom. Dois modos: notas e acordes do campo harmônico (1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto). Ordem pelas notas, ciclo das quintas, ciclo das quartas, terças maiores ou terças menores/sextas. Tocar num bloco toca a nota ou o acorde (som gerado no navegador).
+
+## Mudar de tom
+
+Para passar de uma música para a próxima, em outro tom, sem parar a banda. Escolhe o tom atual e o da próxima e o site mostra os caminhos: pelo dominante do novo tom (ex.: de F para D, F → A7 → D), pelo 2-5-1 do novo tom (F → Em7 → A7 → D) e por um acorde em comum aos dois tons, quando existe. Mostra também a nota de ligação (nota que o acorde atual e o de passagem têm em comum) e permite ouvir cada caminho.
 
 ## Treino
 
-- Perguntas: grau de uma nota, nota de um grau, acordes do campo e de fora do campo, com placar.
+- Perguntas: grau de uma nota, nota de um grau e acordes do campo harmônico, com placar.
 - Ouvido (o site toca o 1 do tom como referência):
   - Grau do acorde / grau da nota: você responde o grau que ouviu.
   - Sobe ou desce: duas notas; você diz se a segunda subiu, desceu ou repetiu, e vê de qual grau para qual foi.
