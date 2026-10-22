@@ -1356,7 +1356,7 @@ function synthNote(ctx, midi, start, dur, level) {
 
 // Toca notas MIDI (acordes levemente "dedilhados", do grave para o agudo)
 function renderNotes(ctx, midis, { when = 0, strum = 0.025, dur = 1.4, startAt = ctx.currentTime + 0.03 } = {}) {
-  const level = 0.32 / Math.sqrt(midis.length);
+  const level = 0.2 / Math.sqrt(midis.length); // volume parecido com o de antes
   midis.forEach((m, i) => synthNote(ctx, m, startAt + when + i * strum, dur, i === 0 && midis.length > 1 ? level * 1.2 : level));
 }
 function playMidis(midis, opts = {}) {
