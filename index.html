@@ -217,7 +217,15 @@
   .map thead th b { display: block; color: var(--ink); font-size: 0.85rem; }
 
   /* Mudar de tom */
-  .mod-swap { align-self: flex-end; }
+  .mod-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .mod-song {
+    margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 16px 16px; display: flex; flex-wrap: wrap; gap: 12px;
+  }
+  .mod-song legend { font-weight: 700; padding: 0 6px; }
+  .mod-song .field { flex: 1 1 140px; }
+  .mod-song select { width: 100%; }
+  @media (max-width: 600px) { .mod-controls { grid-template-columns: 1fr; } }
   .mod-summary { font-size: 1.05rem; margin: 0 0 14px; }
   .mod-summary b { color: var(--accent); }
   .mod-paths, .mod-extra { display: grid; gap: 12px; margin-bottom: 12px; }
@@ -426,16 +434,29 @@
   </section>
 
   <section id="viewMod" role="tabpanel" aria-labelledby="tabMod" hidden>
-    <div class="map-controls">
-      <div class="field">
-        <label for="modFrom">Tom da música atual</label>
-        <select id="modFrom"></select>
-      </div>
-      <button type="button" class="ghost mod-swap" id="modSwap" title="Inverter os tons">⇄ Inverter</button>
-      <div class="field">
-        <label for="modTo">Tom da próxima música</label>
-        <select id="modTo"></select>
-      </div>
+    <div class="mod-controls">
+      <fieldset class="mod-song">
+        <legend>Música atual</legend>
+        <div class="field">
+          <label for="modFrom">Tom</label>
+          <select id="modFrom"></select>
+        </div>
+        <div class="field">
+          <label for="modLast">Termina no acorde</label>
+          <select id="modLast"></select>
+        </div>
+      </fieldset>
+      <fieldset class="mod-song">
+        <legend>Próxima música</legend>
+        <div class="field">
+          <label for="modTo">Tom</label>
+          <select id="modTo"></select>
+        </div>
+        <div class="field">
+          <label for="modFirst">Começa no acorde</label>
+          <select id="modFirst"></select>
+        </div>
+      </fieldset>
     </div>
     <p class="mod-summary" id="modSummary" aria-live="polite"></p>
     <div class="mod-paths" id="modPaths"></div>
@@ -770,59 +791,112 @@ const chordTones = (name) => new Set(chordMidis(name).map((m) => m % 12));
 // Mesmo acorde mesmo com nomes diferentes (F# e Gb): compara fundamental e qualidade
 const chordId = (name) => { const m = name.match(/^([A-G][#b]?)(.*)$/); return semitoneOf(m[1]) + ":" + m[2]; };
 const STEP_NAMES = ["", "meio tom", "um tom", "um tom e meio", "dois tons", "dois tons e meio", "três tons"];
+const chordRoot = (chord) => chord.match(/^[A-G][#b]?/)[0];
+// Nota com quantos acidentes tiver (F## = G) -> 0-11
+const fullSemitone = (n) => (noteToSemitone(n[0], "") + (n.match(/#/g) || []).length - (n.slice(1).match(/b/g) || []).length + 120) % 12;
+// Escrita simples quando a teórica ficaria estranha (E#, B#, Cb, Fb, dobrados)
+const plainNote = (n) => (/##|bb|^E#|^B#|^Cb|^Fb/.test(n) ? ROOT_OPTIONS[fullSemitone(n)] : n);
+const dominantOf = (chord) => plainNote(majorScale(chordRoot(chord))[4]) + "7"; // 5 com sétima: puxa para o acorde
+const twoOf = (chord) => plainNote(majorScale(chordRoot(chord))[1]) + "m7";      // 2 menor com sétima
 
-// Caminhos para sair do tom "fromKey" e entrar no "toKey" (tons maiores)
-function transitionPlan(fromKey, toKey) {
-  const to = majorScale(toKey);
+// Caminhos para ligar o ÚLTIMO acorde da música atual ao PRIMEIRO acorde da próxima.
+// lastDeg/firstDeg: grau (1-7) desses acordes no tom de cada música.
+function transitionPlan(fromKey, lastDeg, toKey, firstDeg) {
   const fromField = fieldOf(fromKey), toField = fieldOf(toKey);
-  const I1 = fromField[0], I2 = toField[0];
-  const V7 = to[4] + "7", ii7 = to[1] + "m7";
+  const last = fromField[lastDeg - 1], first = toField[firstDeg - 1];
   const up = (semitoneOf(toKey) - semitoneOf(fromKey) + 12) % 12;
-  if (up === 0) return { same: true, fromKey, toKey, paths: [] };
-  const distance = up <= 6 ? "sobe " + STEP_NAMES[up] : "desce " + STEP_NAMES[12 - up];
+  const distance = up === 0 ? "é o mesmo" : up <= 6 ? "sobe " + STEP_NAMES[up] : "desce " + STEP_NAMES[12 - up];
+  const firstRoot = chordRoot(first);
+  const L = semitoneOf(chordRoot(last)), F = semitoneOf(firstRoot);
+  const lastStep = { chord: last, label: lastDeg + " em " + fromKey };
+  const firstStep = { chord: first, label: firstDeg + " em " + toKey };
+  const toScale = majorScale(toKey), fromScale = majorScale(fromKey);
+  const spell = (pc) => toScale.find((n) => semitoneOf(n) === pc) || fromScale.find((n) => semitoneOf(n) === pc) || ROOT_OPTIONS[pc];
 
   const paths = [];
-  paths.push({
-    title: "Pelo dominante (o mais rápido)",
-    seq: [I1, V7, I2],
-    why: `O ${V7} é o 5 de ${toKey} e "puxa" para o ${I2}. Funciona de qualquer tom para qualquer tom: no último compasso da música, toque o ${V7} e entre na próxima.`
-      + (up === 1 || up === 2 ? ` Como o próximo tom ${distance}, é a famosa subida de tom de final de música: dá energia sem precisar parar.` : "")
-      + (up === 5 ? ` Atalho: o seu ${I1} já é o 5 de ${toKey}, então basta colocar a sétima nele.` : ""),
-  });
-  paths.push({
-    title: "2-5-1 do novo tom (o mais suave)",
-    seq: [I1, ii7, V7, I2],
-    why: `${ii7} e ${V7} são o 2 e o 5 de ${toKey}. A banda "conversa" até o novo tom em vez de pular direto.`,
-  });
-
-  // Acorde pivô: existe nos dois campos harmônicos; o melhor é o que vira 2 ou 4 no novo tom
-  const toIds = toField.map(chordId);
-  const commons = fromField
-    .map((c, i) => ({ chord: c, fromDeg: i + 1, toDeg: toIds.indexOf(chordId(c)) + 1 }))
-    .filter((c) => c.toDeg > 0);
-  const prefer = [2, 4, 6, 3, 5, 1, 7];
-  const pivots = commons.filter((c) => c.fromDeg !== 1).sort((a, b) => prefer.indexOf(a.toDeg) - prefer.indexOf(b.toDeg));
-  if (pivots.length) {
-    const p = pivots[0];
-    const pivotName = toField[p.toDeg - 1]; // escrito como no novo tom
-    paths.push({
-      title: "Por um acorde em comum (pivô)",
-      seq: [I1, pivotName, V7, I2],
-      why: `O ${pivotName} existe nos dois tons: é o ${p.fromDeg} em ${fromKey} e o ${p.toDeg} em ${toKey}. Ele soa "de casa" para a música que está acabando e já prepara a próxima.`,
-    });
+  const seen = new Set();
+  const add = (title, middle, why) => {
+    const steps = [lastStep, ...middle, firstStep];
+    const id = steps.map((x) => chordId(x.chord)).join(">");
+    if (seen.has(id)) return;
+    seen.add(id);
+    paths.push({ title, steps, seq: steps.map((x) => x.chord), why });
+  };
+  if (chordId(last) === chordId(first)) {
+    add("Mesmo acorde", [], `A música atual termina no ${last} e a próxima começa nele: é só emendar.`);
   }
 
-  // Nota de ligação: nota do acorde atual que também está no acorde de passagem
-  const spell = (pc) => to.find((n) => semitoneOf(n) === pc) || majorScale(fromKey).find((n) => semitoneOf(n) === pc) || FLAT_NAMES[pc];
-  const tonesI1 = chordTones(I1);
-  const linkV7 = [...chordTones(V7)].filter((pc) => tonesI1.has(pc)).map(spell);
-  const linkI2 = [...chordTones(I2)].filter((pc) => tonesI1.has(pc)).map(spell);
+  // Quantas quartas separam o último acorde do primeiro (G -> C -> F -> Bb = 3)
+  let fourths = 0;
+  for (let k = 1; k <= 6; k++) if ((L + 5 * k) % 12 === F) { fourths = k; break; }
+  const V = dominantOf(first), ii = twoOf(first);
 
-  return {
-    same: false, fromKey, toKey, distance, paths, I1, I2, V7,
-    commons: commons.map((c) => ({ ...c, chord: toField[c.toDeg - 1] })),
-    linkV7, linkI2,
-  };
+  // 1. 2-5 do primeiro acorde
+  if (chordId(ii) !== chordId(last)) {
+    add("2-5 do primeiro acorde (o mais suave)",
+      [{ chord: ii, label: "2 do " + firstRoot }, { chord: V, label: "5 do " + firstRoot }],
+      `${ii} e ${V} são o 2 e o 5 do ${first}: a banda vai "conversando" até o primeiro acorde da próxima música.`);
+  }
+  // 2. Dominante do primeiro acorde (ou atalho, se o último já é o 5 dele)
+  if (fourths === 1) {
+    add(`Atalho: o ${last} já é o 5 do ${first}`,
+      [{ chord: chordRoot(last) + "7", label: "5 do " + firstRoot }],
+      `O ${last} fica a uma quarta do ${first}: é só colocar a sétima (${chordRoot(last)}7) e entrar no ${first}.`);
+  } else {
+    add("Dominante do primeiro acorde (o mais rápido)",
+      [{ chord: V, label: "5 do " + firstRoot }],
+      `O ${V} é o 5 do ${first} e "puxa" para ele. Toque o ${V} no último compasso e entre na próxima música.`
+        + (chordRoot(V) === toKey || plainNote(chordRoot(V)) === toKey ? ` Bônus: o ${chordRoot(V)} é a tônica de ${toKey}, então o tom novo já aparece.` : ""));
+  }
+  // 3. Ciclo das quartas: do último até o primeiro, de quarta em quarta (2 a 4 passos)
+  if (fourths >= 2 && fourths <= 4) {
+    const middle = [];
+    let r = L;
+    for (let i = 1; i < fourths; i++) {
+      r = (r + 5) % 12;
+      const next = (r + 5) % 12;
+      middle.push({ chord: spell(r) + "7", label: "5 do " + spell(next) });
+    }
+    add("Ciclo das quartas", middle,
+      `Do ${last} ao ${first} são ${fourths} quartas: cada acorde (com sétima) puxa para o seguinte, como uma escada.`);
+  }
+  // 4. Firmar o tom novo antes de começar pelo primeiro acorde
+  if (firstDeg !== 1) {
+    const V7new = plainNote(toScale[4]) + "7";
+    add(`Passando pela tônica de ${toKey}`,
+      [{ chord: V7new, label: "5 em " + toKey }, { chord: toField[0], label: "1 em " + toKey }],
+      `Primeiro firma o tom de ${toKey} (${V7new} → ${toField[0]}) e só então começa a música pelo ${first}.`);
+  }
+
+  // Truques de ligação
+  const tricks = [];
+  const inNew = toField.findIndex((c) => chordId(c) === chordId(last));
+  if (inNew >= 0) {
+    const nameThere = toField[inNew] === last ? "" : `, onde se escreve ${toField[inNew]}`;
+    tricks.push(`O ${last} já faz parte de ${toKey} (é o ${inNew + 1} lá${nameThere}): ele mesmo pode ser a ponte.`);
+  }
+  const sameRoot = toField.findIndex((c, i) => i !== inNew && semitoneOf(chordRoot(c)) === L && chordId(c) !== chordId(last));
+  if (sameRoot >= 0) {
+    const target = toField[sameRoot];
+    const changed = [...chordTones(last)].filter((pc) => !chordTones(target).has(pc)).map(spell);
+    const into = [...chordTones(target)].filter((pc) => !chordTones(last).has(pc)).map(spell);
+    // Só é truque quando muda exatamente uma nota (ex.: G -> Gm, o Si desce para Si bemol)
+    if (changed.length === 1 && into.length === 1) {
+      tricks.push(`Mude só uma nota: o ${last} vira ${target} (${changed[0]} → ${into[0]}) e você já está no campo de ${toKey}, onde ele é o ${sameRoot + 1}.`);
+    }
+  }
+  // Nota de ligação: nota que o último acorde e o primeiro acorde de passagem têm em comum
+  const bridge = paths.find((p) => p.steps.length > 2);
+  const bridgeChord = bridge ? bridge.steps[1].chord : first;
+  const link = [...chordTones(bridgeChord)].filter((pc) => chordTones(last).has(pc)).map(spell);
+
+  const toIds = toField.map(chordId);
+  const commons = fromField
+    .map((c, i) => ({ fromDeg: i + 1, toDeg: toIds.indexOf(chordId(c)) + 1 }))
+    .filter((c) => c.toDeg > 0)
+    .map((c) => ({ ...c, chord: toField[c.toDeg - 1] }));
+
+  return { fromKey, toKey, lastDeg, firstDeg, last, first, distance, paths, tricks, link, bridgeChord, commons };
 }
 
 // Notas (MIDI) para tocar um acorde, numa região natural (como um violão ou teclado de banda):
@@ -1475,21 +1549,19 @@ mapFocus.addEventListener("change", renderMap);
 renderMap();
 
 // ---------- 6f. Mudar de tom ----------
-const modFrom = $("modFrom"), modTo = $("modTo"), modPaths = $("modPaths"), modExtra = $("modExtra"), modSummary = $("modSummary");
+const modFrom = $("modFrom"), modTo = $("modTo"), modLast = $("modLast"), modFirst = $("modFirst");
+const modPaths = $("modPaths"), modExtra = $("modExtra"), modSummary = $("modSummary");
 MAP_KEYS.forEach((k) => { modFrom.add(new Option(k + " maior", k)); modTo.add(new Option(k + " maior", k)); });
-modFrom.value = "F"; // exemplo: música em F, a próxima em D
-modTo.value = "D";
 
-// Grau de um acorde no novo tom (ou no tom atual), para mostrar embaixo do acorde
-function chordDegreeLabel(chord, fromKey, toKey, index) {
-  if (index === 0) return "1 em " + fromKey;
-  const base = chord.replace(/7$/, "");
-  const toIdx = fieldOf(toKey).map(chordId).indexOf(chordId(base));
-  if (chord.endsWith("7") && !chord.endsWith("m7")) return "5 em " + toKey; // dominante (A7)
-  if (toIdx >= 0) return (toIdx + 1) + " em " + toKey;
-  const fromIdx = fieldOf(fromKey).map(chordId).indexOf(chordId(base));
-  return fromIdx >= 0 ? (fromIdx + 1) + " em " + fromKey : "";
+// Opções de acorde de um tom: "G (5)"; mantém o grau escolhido quando o tom muda
+function fillChordSelect(sel, key, deg) {
+  sel.replaceChildren(...fieldOf(key).map((c, i) => new Option(c + "  (" + (i + 1) + ")", String(i + 1))));
+  sel.value = String(deg);
 }
+// Exemplo: música em C que termina no G (5); a próxima em F começa no Bb (4)
+modFrom.value = "C"; modTo.value = "F";
+fillChordSelect(modLast, "C", 5);
+fillChordSelect(modFirst, "F", 4);
 
 function modCard(title, cls = "") {
   const card = document.createElement("div");
@@ -1502,30 +1574,25 @@ function modCard(title, cls = "") {
 const modP = (text) => { const p = document.createElement("p"); p.textContent = text; return p; };
 
 function renderMod() {
-  const plan = transitionPlan(modFrom.value, modTo.value);
-  if (plan.same) {
-    modSummary.textContent = "As duas músicas estão no mesmo tom: é só emendar.";
-    modPaths.replaceChildren();
-    modExtra.replaceChildren();
-    return;
-  }
-  modSummary.innerHTML = `De <b>${plan.fromKey}</b> para <b>${plan.toKey}</b>: o tom ${plan.distance}.`; // montado pelo site
+  const plan = transitionPlan(modFrom.value, Number(modLast.value), modTo.value, Number(modFirst.value));
+  // texto montado pelo próprio site
+  modSummary.innerHTML = `A música em <b>${plan.fromKey}</b> termina no <b>${plan.last}</b> (${plan.lastDeg}); a próxima, em <b>${plan.toKey}</b>, começa no <b>${plan.first}</b> (${plan.firstDeg}). O tom ${plan.distance}.`;
   modPaths.replaceChildren(...plan.paths.map((p) => {
     const card = modCard(p.title);
     const seq = document.createElement("div");
     seq.className = "mod-seq";
-    p.seq.forEach((chord, i) => {
+    p.steps.forEach((step, i) => {
       if (i) { const a = document.createElement("span"); a.className = "arrow"; a.textContent = "→"; seq.append(a); }
       const chip = document.createElement("button");
       chip.type = "button";
-      chip.className = "chip " + (i === 0 ? "from" : i === p.seq.length - 1 ? "to" : "pass");
+      chip.className = "chip " + (i === 0 ? "from" : i === p.steps.length - 1 ? "to" : "pass");
       const name = document.createElement("strong");
-      name.textContent = chord;
+      name.textContent = step.chord;
       const deg = document.createElement("small");
-      deg.textContent = chordDegreeLabel(chord, plan.fromKey, plan.toKey, i);
+      deg.textContent = step.label;
       chip.append(name, deg);
-      chip.title = "Ouvir " + chord;
-      chip.addEventListener("click", () => playMidis(chordMidis(chord), { strum: 0.03 }));
+      chip.title = "Ouvir " + step.chord;
+      chip.addEventListener("click", () => playMidis(chordMidis(step.chord), { strum: 0.03 }));
       seq.append(chip);
     });
     const play = document.createElement("button");
@@ -1538,29 +1605,27 @@ function renderMod() {
   }));
 
   const extras = [];
-  const link = plan.linkV7.length ? plan.linkV7 : plan.linkI2;
-  const linkChord = plan.linkV7.length ? plan.V7 : plan.I2;
+  if (plan.tricks.length) {
+    const c = modCard("Truque de ligação", "info");
+    plan.tricks.forEach((t) => c.append(modP(t)));
+    extras.push(c);
+  }
   const linkCard = modCard("Nota de ligação", "info");
-  linkCard.append(modP(link.length
-    ? `Segure ${link.length > 1 ? "uma destas notas" : "a nota"} ${link.join(" ou ")}: ${link.length > 1 ? "elas estão" : "ela está"} no ${plan.I1} (acorde atual) e no ${linkChord}. Quem está no teclado, na guitarra ou cantando pode sustentar essa nota enquanto a banda troca: a mudança fica "costurada".`
-    : `O ${plan.I1} não tem nota em comum com o ${plan.V7} nem com o ${plan.I2}. Nesse caso, uma pausa curta de toda a banda (um "breque") antes do ${plan.V7} também funciona bem.`));
+  linkCard.append(modP(plan.link.length
+    ? `Segure ${plan.link.length > 1 ? "uma destas notas" : "a nota"} ${plan.link.join(" ou ")}: ${plan.link.length > 1 ? "elas estão" : "ela está"} no ${plan.last} e no ${plan.bridgeChord}. Quem está no teclado, na guitarra ou cantando pode sustentar essa nota enquanto a banda troca.`
+    : `O ${plan.last} não tem nota em comum com o ${plan.bridgeChord}. Uma pausa curta de toda a banda (um "breque") antes da troca também funciona bem.`));
   extras.push(linkCard);
-
   const commonCard = modCard("Acordes em comum entre os dois tons", "info");
   commonCard.append(modP(plan.commons.length
-    ? plan.commons.map((c) => `${c.chord} (${c.fromDeg} em ${plan.fromKey}, ${c.toDeg} em ${plan.toKey})`).join(" · ")
-      + ". Qualquer um deles pode ser o último acorde da música atual, já preparando a próxima."
-    : `${plan.fromKey} e ${plan.toKey} não têm nenhum acorde em comum. Use o caminho pelo dominante ou o 2-5-1.`));
+    ? plan.commons.map((c) => `${c.chord} (${c.fromDeg} em ${plan.fromKey}, ${c.toDeg} em ${plan.toKey})`).join(" · ") + "."
+    : `${plan.fromKey} e ${plan.toKey} não têm nenhum acorde em comum.`));
   extras.push(commonCard);
-
-  const tipCard = modCard("Dica para a banda", "info");
-  tipCard.append(modP(`Combine um sinal (o líder fala o tom ou mostra com a mão) e use o caminho pelo dominante no último compasso da música: todo mundo toca o ${plan.V7} junto e entra no ${plan.I2}.`));
-  extras.push(tipCard);
   modExtra.replaceChildren(...extras);
 }
-modFrom.addEventListener("change", renderMod);
-modTo.addEventListener("change", renderMod);
-$("modSwap").addEventListener("click", () => { [modFrom.value, modTo.value] = [modTo.value, modFrom.value]; renderMod(); });
+modFrom.addEventListener("change", () => { fillChordSelect(modLast, modFrom.value, modLast.value || 1); renderMod(); });
+modTo.addEventListener("change", () => { fillChordSelect(modFirst, modTo.value, modFirst.value || 1); renderMod(); });
+modLast.addEventListener("change", renderMod);
+modFirst.addEventListener("change", renderMod);
 renderMod();
 
 // ---------- 6e. Treino ----------

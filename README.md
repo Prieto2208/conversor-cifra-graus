@@ -21,7 +21,7 @@ Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, 
 
 ## Mudar de tom
 
-Para passar de uma música para a próxima, em outro tom, sem parar a banda. Escolhe o tom atual e o da próxima e o site mostra os caminhos: pelo dominante do novo tom (ex.: de F para D, F → A7 → D), pelo 2-5-1 do novo tom (F → Em7 → A7 → D) e por um acorde em comum aos dois tons, quando existe. Mostra também a nota de ligação (nota que o acorde atual e o de passagem têm em comum) e permite ouvir cada caminho.
+Para passar de uma música para a próxima, em outro tom, sem parar a banda. Você escolhe o tom e o acorde em que a música atual termina, e o tom e o acorde em que a próxima começa (ex.: música em C que termina no G; a próxima, em F, começa no Bb). O site liga esses dois acordes: pelo 2-5 do primeiro acorde (G → Cm7 → F7 → Bb), pelo dominante dele (G → F7 → Bb), pelo ciclo das quartas (G → C7 → F7 → Bb) ou passando pela tônica nova (G → C7 → F → Bb). Mostra também truques de ligação (o G vira Gm e você já está no campo de F), a nota de ligação e permite ouvir cada caminho.
 
 ## Treino
 
