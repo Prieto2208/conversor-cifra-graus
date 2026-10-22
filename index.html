@@ -227,6 +227,7 @@
   .train-question b { color: var(--accent); }
   .train-audio { justify-content: center; flex-wrap: wrap; }
   .train-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 10px; }
+  .train-options.seven { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; } /* os 7 graus numa linha */
   .train-options button {
     font-size: 1.15rem; padding: 14px 8px; background: var(--bg); color: var(--ink);
     border: 1px solid var(--line); font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -1315,6 +1316,7 @@ function newQuestion() {
   trainFeedbackEl.textContent = "";
   trainFeedbackEl.className = "train-feedback";
   $("earControls").hidden = !q.ear;
+  trainOptionsEl.classList.toggle("seven", q.options.length === 7);
   trainOptionsEl.replaceChildren(...q.options.map((opt) => {
     const b = document.createElement("button");
     b.type = "button";
