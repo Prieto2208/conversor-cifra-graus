@@ -960,19 +960,42 @@ if (!sb) {
 }
 
 if (sb) {
-  sb.auth.getSession().then(({ data }) => setSession(data.session));
+  // Se o banco não responder (ex.: projeto pausado no Supabase), mostra a tela de login
+  // com um aviso em vez de deixar a página em branco.
+  const OFFLINE_MSG = "Não foi possível conectar ao banco de dados agora. Tente de novo em alguns minutos.";
+  const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), 8000));
+  Promise.race([sb.auth.getSession(), timeout])
+    .then(({ data, error }) => {
+      if (error) throw error;
+      setSession(data.session);
+    })
+    .catch((err) => {
+      console.error(err);
+      setSession(null);
+      loginError.textContent = OFFLINE_MSG;
+    });
   sb.auth.onAuthStateChange((_event, session) => setSession(session));
 
   $("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     $("loginSubmit").disabled = true;
     loginError.textContent = "";
-    const { error } = await sb.auth.signInWithPassword({
-      email: loginToEmail($("loginEmail").value),
-      password: $("loginPassword").value,
-    });
+    let error;
+    try {
+      ({ error } = await sb.auth.signInWithPassword({
+        email: loginToEmail($("loginEmail").value),
+        password: $("loginPassword").value,
+      }));
+    } catch (err) {
+      error = { name: "AuthRetryableFetchError", status: 0, cause: err }; // falha de conexão
+    }
     $("loginSubmit").disabled = false;
-    if (error) { loginError.textContent = "Usuário ou senha incorretos."; return; }
+    if (error) {
+      // Erro de rede (banco fora do ar) é diferente de senha errada
+      const offline = error.name === "AuthRetryableFetchError" || error.status === 0 || !navigator.onLine;
+      loginError.textContent = offline ? OFFLINE_MSG : "Usuário ou senha incorretos.";
+      return;
+    }
     $("loginPassword").value = "";
   });
   $("logout").addEventListener("click", () => sb.auth.signOut());
