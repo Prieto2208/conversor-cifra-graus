@@ -23,6 +23,8 @@ Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, 
 
 Para passar de uma música para a próxima, em outro tom, sem parar a banda. Você escolhe o tom e o acorde em que a música atual termina, e o tom e o acorde em que a próxima começa (ex.: música em C que termina no G; a próxima, em F, começa no Bb). O site liga esses dois acordes: pelo 2-5 do primeiro acorde (G → Cm7 → F7 → Bb), pelo dominante dele (G → F7 → Bb), pelo ciclo das quartas (G → C7 → F7 → Bb) ou passando pela tônica nova (G → C7 → F → Bb). Mostra também truques de ligação (o G vira Gm e você já está no campo de F), a nota de ligação e permite ouvir cada caminho.
 
+**Tocar no tempo:** em cada caminho, toca a transição como numa música de verdade: metrônomo em 4/4 (65 bpm por padrão, de 40 a 160), 1 compasso de contagem, 2 compassos do acorde final da música atual, a passagem (1 ou 2 compassos por acorde) e 2 compassos do primeiro acorde da próxima. Um pad segura cada acorde no fundo e o piano marca o 1º tempo; dá para ligar e desligar metrônomo, pad e piano. A tela mostra o tempo do compasso e acende o acorde que está soando.
+
 ## Treino
 
 - Perguntas: grau de uma nota, nota de um grau e acordes do campo harmônico, com placar.
