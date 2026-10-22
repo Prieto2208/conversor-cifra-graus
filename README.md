@@ -19,6 +19,8 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 
 Aba que escuta pelo microfone e reconhece os **acordes** (em qualquer região, aberto ou fechado, com inversões), mostra o acorde de agora com o grau, o histórico dos últimos acordes e o tom mais provável (e o relativo). O tom vem dos acordes tocados (campo harmônico) junto com as notas (Krumhansl-Schmuckler); harmônicos são filtrados. O áudio é analisado só no aparelho, nada é gravado ou enviado. O botão "Levar este tom para o conversor" ajusta Tom e Modo do conversor.
 
+Para banda completa: compensa a afinação da banda, tira a bateria (mediana no tempo), analisa o baixo à parte e mostra baixo, notas soando e afinação. Dá para escolher a entrada de áudio (ex.: interface USB ligada na mesa de som).
+
 ## Como usar
 
 Abra a página, cole a cifra na caixa da esquerda e copie ou baixe o resultado da direita.

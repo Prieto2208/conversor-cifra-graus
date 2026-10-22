@@ -191,6 +191,10 @@
   .key-now { text-align: center; }
   .key-now strong { color: var(--chord); font-size: 1.6rem; }
   .chord-degree { color: var(--muted); font-family: "IBM Plex Mono", monospace; font-weight: 600; }
+  .key-detail { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 0.9rem; color: var(--muted); }
+  .key-detail b { color: var(--ink); font-family: "IBM Plex Mono", monospace; }
+  .input-field select { width: 100%; }
+  .key-tip { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); }
   .key-history { text-align: center; font-family: "IBM Plex Mono", monospace; font-size: 0.9rem; color: var(--muted); min-height: 1.4em; overflow-wrap: anywhere; }
   .key-history b { color: var(--ink); font-weight: 600; }
   .chroma { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 120px; }
@@ -312,6 +316,11 @@
         <button id="listenBtn">Começar a escutar</button>
         <button class="ghost" id="listenReset" disabled>Zerar</button>
       </div>
+      <div class="field input-field">
+        <label for="audioInput">Entrada de áudio</label>
+        <select id="audioInput"><option value="">Microfone padrão</option></select>
+        <p class="key-tip">Com a banda toda tocando, o melhor resultado vem ligando o aparelho na mesa de som (saída auxiliar, com um adaptador ou interface de áudio) ou num canal só do violão/teclado. No microfone, fique perto do instrumento harmônico.</p>
+      </div>
 
       <div class="key-result" aria-live="polite">
         <div class="key-label">Tom provável</div>
@@ -322,6 +331,11 @@
       </div>
 
       <div class="key-now">Acorde agora: <strong id="chordNow">—</strong> <span class="chord-degree" id="chordDegree"></span></div>
+      <div class="key-detail">
+        <span>Baixo: <b id="bassNow">—</b></span>
+        <span>Notas soando: <b id="notesNow">—</b></span>
+        <span>Afinação: <b id="tuningNow">—</b></span>
+      </div>
       <div class="key-history" id="chordHistory" aria-label="Últimos acordes"></div>
       <div class="key-label">Notas que mais aparecem</div>
       <div class="chroma" id="chroma" aria-label="Quanto cada nota apareceu"></div>
@@ -590,27 +604,61 @@ function keyLabel(tonic, mode) {
   return mode === "minor" ? MINOR_KEY_NAMES[tonic] + "m" : ROOT_OPTIONS[tonic];
 }
 
+// Mediana de alguns espectros seguidos, faixa por faixa: notas sustentadas (acordes, baixo)
+// continuam; batidas rápidas (bumbo, caixa, prato) somem porque duram só um instante.
+function medianSpectrum(frames) {
+  const n = frames.length, len = frames[0].length, out = new Float32Array(len), buf = new Array(n);
+  for (let i = 0; i < len; i++) {
+    for (let k = 0; k < n; k++) buf[k] = frames[k][i];
+    buf.sort((a, b) => a - b);
+    out[i] = buf[n >> 1];
+  }
+  return out;
+}
+
+// Afinação da banda: acompanha devagar quanto as notas estão acima/abaixo de A=440 (em cents)
+function estimateTuning(current, deviations) {
+  if (deviations.length < 4) return current;
+  const sorted = [...deviations].sort((a, b) => a - b);
+  const median = sorted[sorted.length >> 1];
+  return Math.max(-50, Math.min(50, current + 0.15 * median));
+}
+
 // Espectro (magnitudes por faixa de frequência) -> quanto cada uma das 12 notas soou agora,
 // sem importar a oitava: o mesmo acorde grave, agudo, aberto ou fechado dá o mesmo resultado.
-// Também devolve a nota do baixo (para inversões como G/B).
-function analyzeSpectrum(mags, binHz, minHz = 60, maxHz = 2500) {
-  const chroma = new Array(12).fill(0);
+//  - chroma: notas da harmonia (faixa do violão/teclado, ~90 a 1600 Hz)
+//  - bassChroma / bass: notas da região do baixo (~40 a 200 Hz)
+//  - deviations: quanto cada pico está fora da nota (cents), para acompanhar a afinação
+function analyzeSpectrum(mags, binHz, tuning = 0) {
+  const chroma = new Array(12).fill(0), bassChroma = new Array(12).fill(0), deviations = [];
+  const len = mags.length;
+  const from = Math.max(2, Math.floor(40 / binHz)), to = Math.min(len - 2, Math.ceil(1600 / binHz));
   let top = 0;
-  for (let i = 1; i < mags.length - 1; i++) if (mags[i] > top) top = mags[i];
-  if (!top) return { chroma, bass: null };
-  const from = Math.max(1, Math.floor(minHz / binHz)), to = Math.min(mags.length - 2, Math.ceil(maxHz / binHz));
+  for (let i = from; i <= to; i++) if (mags[i] > top) top = mags[i];
+  if (!top) return { chroma, bassChroma, bass: null, deviations };
 
-  // 1. Picos do espectro que caem perto de uma nota (descarta ruído entre as notas)
+  // "Chão" de ruído ao redor de cada faixa (média móvel): o pico precisa se destacar dele.
+  // Ruído espalhado (prato, ambiente) levanta o chão e deixa de virar nota.
+  const prefix = new Float64Array(len + 1);
+  for (let i = 0; i < len; i++) prefix[i + 1] = prefix[i] + mags[i];
+  const W = Math.max(3, Math.round(25 / binHz));
+  const floorAt = (i) => {
+    const a = Math.max(0, i - W), b = Math.min(len, i + W + 1);
+    return (prefix[b] - prefix[a]) / (b - a);
+  };
+
+  // 1. Picos que caem perto de uma nota (já compensando a afinação da banda)
   const peaks = [];
   for (let i = from; i <= to; i++) {
     const m = mags[i];
-    if (m < top * 0.02 || m <= mags[i - 1] || m < mags[i + 1]) continue;
+    if (m < top * 0.01 || m <= mags[i - 1] || m < mags[i + 1] || m < floorAt(i) * 3) continue;
     const a = mags[i - 1], c = mags[i + 1];
     const offset = 0.5 * (a - c) / (a - 2 * m + c || 1); // interpolação: frequência exata do pico
     const freq = (i + offset) * binHz;
-    const midi = 69 + 12 * Math.log2(freq / 440);
-    if (Math.abs(midi - Math.round(midi)) > 0.35) continue;
-    peaks.push({ freq, mag: m, pc: ((Math.round(midi) % 12) + 12) % 12 });
+    const midi = 69 + 12 * Math.log2(freq / 440) - tuning / 100;
+    const dev = midi - Math.round(midi);
+    if (Math.abs(dev) > 0.4) continue;
+    peaks.push({ freq, mag: m, pc: ((Math.round(midi) % 12) + 12) % 12, dev });
   }
 
   // 2. Harmônicos: cada corda também soa "notas fantasmas" (3x, 5x, 7x a frequência) que
@@ -624,13 +672,19 @@ function analyzeSpectrum(mags, binHz, minHz = 60, maxHz = 2500) {
     }
   }
 
-  // 3. Soma por nota (raiz quadrada: uma nota muito alta não apaga as outras)
-  for (const p of peaks) chroma[p.pc] += Math.sqrt(p.mag);
+  // 3. Soma por nota (raiz quadrada: uma nota muito alta não apaga as outras), separando baixo e harmonia
+  for (const p of peaks) {
+    const w = Math.sqrt(p.mag);
+    if (p.freq < 200) bassChroma[p.pc] += w;
+    if (p.freq >= 90) chroma[p.pc] += w;
+    if (p.freq >= 100 && p.freq <= 1200 && p.mag > top * 0.05) deviations.push(p.dev * 100);
+  }
 
-  // 4. Baixo: o pico forte mais grave abaixo de ~330 Hz
-  const strongest = Math.max(0, ...peaks.map((p) => p.mag));
-  const bassPeak = peaks.find((p) => p.freq < 330 && p.mag > strongest * 0.2);
-  return { chroma, bass: bassPeak ? bassPeak.pc : null };
+  // 4. Baixo: a nota que mais soa na região grave, se ela for clara
+  const bassMax = Math.max(...bassChroma);
+  const bassSum = bassChroma.reduce((x, y) => x + y, 0);
+  const bass = bassMax > 0 && bassMax >= bassSum * 0.4 ? bassChroma.indexOf(bassMax) : null;
+  return { chroma, bassChroma, bass, deviations };
 }
 
 // Modelos de acorde: intervalos a partir da fundamental e o peso de cada nota
@@ -639,22 +693,38 @@ const CHORD_TYPES = [
   { type: "min", suffix: "m", notes: [[0, 1], [3, 1], [7, 0.8]] },
   { type: "7", suffix: "7", notes: [[0, 1], [4, 1], [7, 0.8], [10, 0.7]], penalty: 0.96 },
   { type: "m7", suffix: "m7", notes: [[0, 1], [3, 1], [7, 0.8], [10, 0.7]], penalty: 0.96 },
-  { type: "dim", suffix: "dim", notes: [[0, 1], [3, 1], [6, 0.9]], penalty: 0.95 },
+  { type: "maj7", suffix: "7M", notes: [[0, 1], [4, 1], [7, 0.8], [11, 0.7]], penalty: 0.955 },
+  { type: "sus4", suffix: "sus4", notes: [[0, 1], [5, 1], [7, 0.8]], penalty: 0.95 },
+  { type: "sus2", suffix: "sus2", notes: [[0, 1], [2, 1], [7, 0.8]], penalty: 0.94 },
+  { type: "dim", suffix: "dim", notes: [[0, 1], [3, 1], [6, 0.9]], penalty: 0.94 },
 ];
 
-// Qual acorde melhor explica as notas que estão soando (compara com os 60 modelos)
-function detectChord(chroma, bass) {
-  const norm = Math.hypot(...chroma);
-  if (!norm) return null;
+// Qual acorde melhor explica as notas que estão soando (compara com os 96 modelos).
+// O baixo reforça a fundamental; com o tom já conhecido, acordes do campo harmônico
+// ganham uma leve preferência (empréstimos continuam possíveis).
+function detectChord(chroma, bass, key = null, bassChroma = null) {
+  const v = [...chroma];
+  const norm0 = Math.hypot(...v);
+  if (!norm0) return null;
+  if (bassChroma) { // o baixo costuma tocar a fundamental: soma a região grave com meio peso
+    const bn = Math.hypot(...bassChroma);
+    if (bn) for (let i = 0; i < 12; i++) v[i] = v[i] / norm0 + (0.5 * bassChroma[i]) / bn;
+  }
+  const norm = Math.hypot(...v);
   let best = null;
   for (let root = 0; root < 12; root++) {
     for (const t of CHORD_TYPES) {
       const tpl = new Array(12).fill(0);
       for (const [iv, w] of t.notes) tpl[(root + iv) % 12] = w;
       let dot = 0;
-      for (let i = 0; i < 12; i++) dot += chroma[i] * tpl[i];
+      for (let i = 0; i < 12; i++) dot += v[i] * tpl[i];
       let score = (dot / (norm * Math.hypot(...tpl))) * (t.penalty || 1);
       if (bass === root) score += 0.04; // baixo na fundamental reforça
+      if (key) {
+        const d = (root - key.tonic + 12) % 12;
+        const want = FIELD_QUALITY[key.mode][d];
+        if (want && (BASE_QUALITY[t.type] === "sus" || [].concat(want).includes(BASE_QUALITY[t.type]))) score += 0.025;
+      }
       if (!best || score > best.score) best = { root, type: t.type, suffix: t.suffix, score };
     }
   }
@@ -668,14 +738,14 @@ const FIELD_QUALITY = {
   major: { 0: "maj", 2: "min", 4: "min", 5: "maj", 7: "maj", 9: "min", 11: "dim" },
   minor: { 0: "min", 2: "dim", 3: "maj", 5: "min", 7: ["min", "maj"], 8: "maj", 10: "maj" },
 };
-const BASE_QUALITY = { maj: "maj", "7": "maj", min: "min", m7: "min", dim: "dim" };
+const BASE_QUALITY = { maj: "maj", "7": "maj", maj7: "maj", min: "min", m7: "min", dim: "dim", sus4: "sus", sus2: "sus" };
 function chordKeyScore(chordTime, tonic, mode) {
   let total = 0, score = 0;
   for (const [key, time] of Object.entries(chordTime)) {
     const [root, type] = key.split(":");
     const d = (Number(root) - tonic + 12) % 12;
     const want = FIELD_QUALITY[mode][d];
-    const fits = want && [].concat(want).includes(BASE_QUALITY[type]);
+    const fits = want && (BASE_QUALITY[type] === "sus" || [].concat(want).includes(BASE_QUALITY[type])); // sus: só a fundamental importa
     let w = fits ? 1 : want ? 0.25 : -0.5;           // no campo / grau certo, qualidade outra / fora
     if (fits && d === 0) w += 0.6;                     // acorde do próprio tom pesa mais
     if (fits && d === 7 && BASE_QUALITY[type] === "maj") w += 0.2; // dominante
@@ -1008,14 +1078,19 @@ const listenBtn = $("listenBtn"), listenReset = $("listenReset"), useKeyBtn = $(
 const keyNameEl = $("keyName"), keyRelEl = $("keyRel"), keyConfEl = $("keyConf"), keyHintEl = $("keyHint");
 const chordNowEl = $("chordNow"), chordDegreeEl = $("chordDegree"), chordHistoryEl = $("chordHistory");
 const chromaEl = $("chroma"), listenStatus = $("listenStatus");
+const bassNowEl = $("bassNow"), notesNowEl = $("notesNow"), tuningNowEl = $("tuningNow"), audioInputSel = $("audioInput");
 const listen = {
   ctx: null, stream: null, analyser: null, timer: null,
   total: new Array(12).fill(0),   // notas ao longo da música
   recent: new Array(12).fill(0),  // notas dos últimos instantes (para o acorde de agora)
   chordTime: {},                  // quanto tempo cada acorde soou ("raiz:tipo" -> tempo)
-  chordNow: null, pending: null, pendingCount: 0, history: [],
+  recentBass: new Array(12).fill(0), // região do baixo nos últimos instantes
+  specHist: [],                   // últimos espectros (a mediana tira a bateria)
+  tuning: 0,                      // afinação da banda em cents (em relação a A=440)
+  chordNow: null, bassNow: null, pending: null, pendingCount: 0, history: [],
   frames: 0, best: null,
 };
+const SPEC_HISTORY = 5;       // ~0,75 s de espectros para a mediana
 const CHORD_MIN_SCORE = 0.8;  // abaixo disso o som não parece um acorde claro
 const DECAY = 0.996;          // memória longa: o que tocou há ~30 s ainda conta, mas cada vez menos
 const MIN_FRAMES = 25;        // ~4 s de som antes de arriscar um tom
@@ -1034,7 +1109,11 @@ const chromaBars = ROOT_OPTIONS.map((name) => {
 function resetListening() {
   listen.total.fill(0);
   listen.recent.fill(0);
-  Object.assign(listen, { chordTime: {}, chordNow: null, pending: null, pendingCount: 0, history: [], frames: 0, best: null });
+  listen.recentBass.fill(0);
+  Object.assign(listen, { chordTime: {}, chordNow: null, bassNow: null, pending: null, pendingCount: 0, history: [], frames: 0, best: null, specHist: [], tuning: 0 });
+  bassNowEl.textContent = "—";
+  notesNowEl.textContent = "—";
+  tuningNowEl.textContent = "—";
   keyNameEl.textContent = "—";
   keyRelEl.textContent = "";
   keyConfEl.style.width = "0";
@@ -1068,6 +1147,16 @@ function chordDisplay(c, key) {
     field: minorPlain ? MINOR_FIELD : MAJOR_FIELD,
   };
   return { name: full, degree: chordToDegree({ root: c.root, suffix: c.suffix, bass: c.bass }, settings) };
+}
+
+// Uma nota (0-11) escrita pelo tom detectado e o grau dela nesse tom
+function noteDisplay(pc, key) {
+  if (!key) return { name: ROOT_OPTIONS[pc], degree: "" };
+  const spell = keySpelling(ROOT_OPTIONS[key.tonic], key.mode);
+  const d = (pc - spell.semi + 12) % 12;
+  const minorPlain = key.mode === "minor" && !relativeChk.checked;
+  const degree = minorPlain ? MINOR_DEGREES[(pc - key.tonic + 12) % 12] : MAJOR_DEGREES[d];
+  return { name: noteAt(spell, d), degree };
 }
 
 function updateKeyDisplay() {
@@ -1112,6 +1201,19 @@ function updateKeyDisplay() {
     chordNowEl.textContent = "—";
     chordDegreeEl.textContent = "";
   }
+  // Baixo e notas que estão soando agora (as mais fortes, em ordem de intensidade)
+  if (listen.bassNow !== null) {
+    const b = noteDisplay(listen.bassNow, key);
+    bassNowEl.textContent = b.name + (b.degree ? " (" + b.degree + ")" : "");
+  } else bassNowEl.textContent = "—";
+  const peak = Math.max(...listen.recent);
+  const sounding = peak > 0
+    ? listen.recent.map((v, i) => [v, i]).filter(([v]) => v >= peak * 0.35).sort((a, b) => b[0] - a[0]).slice(0, 5)
+    : [];
+  notesNowEl.textContent = sounding.length ? sounding.map(([, i]) => noteDisplay(i, key).name).join(" ") : "—";
+  const cents = Math.round(listen.tuning);
+  tuningNowEl.textContent = listen.frames ? (Math.abs(cents) < 5 ? "A=440 (padrão)" : (cents > 0 ? "+" : "") + cents + " cents") : "—";
+
   chordHistoryEl.replaceChildren(...listen.history.flatMap((c, i) => {
     const d = chordDisplay(c, key);
     const b = document.createElement("b");
@@ -1133,8 +1235,11 @@ function analyseFrame() {
   const rms = Math.sqrt(time.reduce((s, x) => s + x * x, 0) / time.length);
   if (rms < 0.005) { // silêncio: não conta
     listen.recent.fill(0);
+    listen.recentBass.fill(0);
     listen.chordNow = null;
+    listen.bassNow = null;
     listen.pending = null;
+    listen.specHist = [];
     listenStatus.textContent = "Silêncio... toque ou aproxime o som do microfone.";
     updateKeyDisplay();
     return;
@@ -1142,20 +1247,33 @@ function analyseFrame() {
   listenStatus.textContent = "";
   const db = new Float32Array(analyser.frequencyBinCount);
   analyser.getFloatFrequencyData(db);
-  const mags = Array.from(db, (d) => (Number.isFinite(d) ? 10 ** (d / 20) : 0));
-  const { chroma: frame, bass } = analyzeSpectrum(mags, ctx.sampleRate / analyser.fftSize);
+  const mags = new Float32Array(db.length);
+  for (let i = 0; i < db.length; i++) mags[i] = Number.isFinite(db[i]) ? 10 ** (db[i] / 20) : 0;
+  // Mediana dos últimos espectros: o que se sustenta (acordes, baixo) fica, a bateria some
+  listen.specHist.push(mags);
+  if (listen.specHist.length > SPEC_HISTORY) listen.specHist.shift();
+  const spectrum = listen.specHist.length >= 3 ? medianSpectrum(listen.specHist) : mags;
+  const res = analyzeSpectrum(spectrum, ctx.sampleRate / analyser.fftSize, listen.tuning);
+  listen.tuning = estimateTuning(listen.tuning, res.deviations);
+  const frame = res.chroma;
   const sum = frame.reduce((s, x) => s + x, 0);
   if (!sum) return;
+  const bassSum = res.bassChroma.reduce((s, x) => s + x, 0) || 1;
   for (let i = 0; i < 12; i++) {
     const v = frame[i] / sum;
     listen.total[i] = listen.total[i] * DECAY + v;
     listen.recent[i] = listen.recent[i] * 0.5 + v * 0.5; // média bem curta: o que soa agora
+    listen.recentBass[i] = listen.recentBass[i] * 0.5 + (res.bassChroma[i] / bassSum) * 0.5;
   }
   for (const k in listen.chordTime) listen.chordTime[k] *= DECAY;
+  const bassMax = Math.max(...listen.recentBass);
+  listen.bassNow = bassMax >= 0.4 ? listen.recentBass.indexOf(bassMax) : null;
 
   // Acorde de agora: só aceita quando o mesmo acorde aparece 2 vezes seguidas (~0,3 s),
-  // para não piscar na troca de acorde ou numa nota de passagem
-  const c = detectChord(listen.recent, bass);
+  // para não piscar na troca de acorde ou numa nota de passagem.
+  // Com o tom já firme, acordes do campo harmônico ganham uma leve preferência.
+  const keyPrior = listen.frames >= MIN_FRAMES * 2 ? listen.best : null;
+  const c = detectChord(listen.recent, listen.bassNow, keyPrior, listen.recentBass);
   if (c && c.score >= CHORD_MIN_SCORE) {
     const id = c.root + ":" + c.type + ":" + c.bass;
     listen.pendingCount = listen.pending === id ? listen.pendingCount + 1 : 1;
@@ -1184,11 +1302,16 @@ async function startListening(source) {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     let node = source ? source(ctx) : null;
     if (!node) {
+      const deviceId = audioInputSel.value;
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+        audio: {
+          echoCancellation: false, noiseSuppression: false, autoGainControl: false,
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
       });
       listen.stream = stream;
       node = ctx.createMediaStreamSource(stream);
+      fillAudioInputs(stream); // com a permissão dada, o navegador mostra o nome das entradas
     }
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 16384; // boa resolução para distinguir notas graves
@@ -1218,6 +1341,25 @@ function stopListening() {
   listenBtn.classList.remove("listening");
   if (listen.frames >= MIN_FRAMES) keyHintEl.textContent = "Escuta parada. O resultado acima é do que foi tocado.";
 }
+
+// Lista as entradas de áudio (microfone do aparelho, interface USB ligada na mesa...)
+async function fillAudioInputs(stream) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+  const track = stream && stream.getAudioTracks()[0];
+  const current = track ? track.getSettings().deviceId : audioInputSel.value;
+  const inputs = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "audioinput");
+  audioInputSel.replaceChildren(new Option("Microfone padrão", ""));
+  inputs.forEach((d, i) => {
+    if (d.deviceId === "default" || d.deviceId === "communications") return;
+    audioInputSel.add(new Option(d.label || "Entrada " + (i + 1), d.deviceId));
+  });
+  if ([...audioInputSel.options].some((o) => o.value === current)) audioInputSel.value = current;
+}
+audioInputSel.addEventListener("change", async () => {
+  if (!listen.ctx) return;
+  stopListening(); // troca a entrada sem perder o que já foi analisado
+  await startListening();
+});
 
 listenBtn.addEventListener("click", () => (listen.ctx ? stopListening() : startListening()));
 listenReset.addEventListener("click", resetListening);
