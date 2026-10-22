@@ -1078,14 +1078,23 @@ function updateKeyDisplay() {
 
   let inKey = new Set();
   if (listen.frames >= MIN_FRAMES) {
-    const [best, second] = rankKeysCombined(listen.total, listen.chordTime);
+    const ranked = rankKeysCombined(listen.total, listen.chordTime);
+    const best = ranked[0];
     listen.best = best;
-    const confidence = Math.max(0, Math.min(1, (best.score - second.score) / 0.8));
+    // Tom relativo (D e Bm) usa os mesmos acordes: a certeza mede o campo harmônico,
+    // comparando com o melhor tom que não seja o relativo
+    const relTonic = best.mode === "major" ? (best.tonic + 9) % 12 : (best.tonic + 3) % 12;
+    const isRel = (k) => k.tonic === relTonic && k.mode !== best.mode;
+    const relKey = ranked.find(isRel);
+    const other = ranked.find((k) => k !== best && !isRel(k));
+    const confidence = Math.max(0, Math.min(1, (best.score - other.score) / 1.2));
+    const relClose = relKey && best.score - relKey.score < 0.35;
     keyNameEl.textContent = best.mode === "minor" ? MINOR_KEY_NAMES[best.tonic] + " menor" : ROOT_OPTIONS[best.tonic] + " maior";
     const rel = best.mode === "major" ? keyLabel((best.tonic + 9) % 12, "minor") : keyLabel((best.tonic + 3) % 12, "major") + " maior";
     keyRelEl.textContent = "Relativo: " + rel;
     keyConfEl.style.width = Math.round(confidence * 100) + "%";
-    keyHintEl.textContent = confidence > 0.6 ? "Tom bem definido." : confidence > 0.3 ? "Provável. Continue tocando para confirmar." : "Ainda incerto. Continue tocando.";
+    keyHintEl.textContent = (confidence > 0.6 ? "Campo harmônico bem definido." : confidence > 0.3 ? "Provável. Continue tocando para confirmar." : "Ainda incerto. Continue tocando.")
+      + (relClose ? " Pode ser também o relativo (" + rel + "): o tom é o acorde que soa como \"casa\", onde a música repousa." : "");
     useKeyBtn.disabled = false;
     const scale = best.mode === "major" ? [0, 2, 4, 5, 7, 9, 11] : [0, 2, 3, 5, 7, 8, 10];
     inKey = new Set(scale.map((s) => (best.tonic + s) % 12));
