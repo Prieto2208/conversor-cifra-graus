@@ -505,7 +505,7 @@
     <div class="practice">
       <div class="practice-head">
         <strong>Tocar no tempo</strong>
-        <span class="practice-sub">2 compassos do fim da música, a transição e 2 compassos do começo da próxima, com 1 compasso de contagem.</span>
+        <span class="practice-sub">2 compassos do fim da música, a transição e 2 compassos do começo da próxima, com 1 compasso de contagem. O pad fica no tom da música atual e passa para o tom novo quando a próxima começa.</span>
       </div>
       <div class="practice-controls">
         <div class="field">
@@ -520,7 +520,7 @@
           </select>
         </div>
         <label class="check"><input type="checkbox" id="modClick" checked> Metrônomo</label>
-        <label class="check"><input type="checkbox" id="modPad" checked> Pad</label>
+        <label class="check"><input type="checkbox" id="modPad" checked> Pad do tom</label>
         <label class="check"><input type="checkbox" id="modPiano" checked> Piano no 1º tempo</label>
       </div>
       <div class="practice-status" id="practiceStatus" hidden>
@@ -1513,9 +1513,9 @@ function renderNotes(ctx, midis, { when = 0, strum = 0.025, dur = 1.4, startAt =
   midis.forEach((m, i) => synthNote(ctx, m, startAt + when + i * strum, dur, i === 0 && midis.length > 1 ? level * 1.2 : level, dest));
 }
 
-// Pad: som longo e macio que segura o acorde (duas ondas levemente desafinadas, filtro bem
-// fechado, entrada e saída lentas). Ao trocar de acorde, um some enquanto o outro entra.
-function synthPad(ctx, midis, start, dur, dest) {
+// Pad: som longo e macio de fundo (duas ondas levemente desafinadas, filtro bem fechado,
+// entrada e saída lentas). Ao trocar, um some enquanto o outro entra.
+function synthPad(ctx, midis, start, dur, dest, { attack = 0.45, release = 0.9 } = {}) {
   const level = 0.07 / Math.sqrt(midis.length);
   midis.forEach((midi, i) => {
     const freq = 440 * 2 ** ((midi - 69) / 12);
@@ -1526,9 +1526,9 @@ function synthPad(ctx, midis, start, dur, dest) {
     const env = ctx.createGain();
     const peak = i === 0 ? level * 0.8 : level;
     env.gain.setValueAtTime(0.0001, start);
-    env.gain.exponentialRampToValueAtTime(peak, start + 0.45);
+    env.gain.exponentialRampToValueAtTime(peak, start + attack);
     env.gain.setValueAtTime(peak, start + dur);
-    env.gain.exponentialRampToValueAtTime(0.0001, start + dur + 0.9);
+    env.gain.exponentialRampToValueAtTime(0.0001, start + dur + release);
     filter.connect(env);
     env.connect(dest);
     for (const detune of [-8, 8]) {
@@ -1538,7 +1538,7 @@ function synthPad(ctx, midis, start, dur, dest) {
       osc.detune.value = detune;
       osc.connect(filter);
       osc.start(start);
-      osc.stop(start + dur + 1);
+      osc.stop(start + dur + release + 0.1);
     }
   });
 }
@@ -1754,7 +1754,7 @@ function renderMod() {
     tempo.type = "button";
     tempo.className = "mod-play";
     tempo.textContent = "Tocar no tempo";
-    tempo.addEventListener("click", () => startPractice(p, card));
+    tempo.addEventListener("click", () => startPractice(p, card, plan));
     const btns = document.createElement("div");
     btns.className = "btns";
     btns.append(tempo, play);
@@ -1817,7 +1817,13 @@ function stopPractice() {
   practice = null;
 }
 
-function startPractice(path, card) {
+// Notas do pad de um tom: tônica grave, tônica, quinta e oitava (tônica entre C3 e B3)
+function keyPadMidis(key) {
+  const r = 48 + semitoneOf(key);
+  return [r - 12, r, r + 7, r + 12];
+}
+
+function startPractice(path, card, plan) {
   stopPractice();
   const ctx = audio();
   if (!ctx) return;
@@ -1845,14 +1851,20 @@ function startPractice(path, card) {
   let t = t0 + bar; // depois da contagem
   for (const seg of segments) {
     const midis = chordMidis(seg.chord);
-    if ($("modPad").checked) synthPad(ctx, midis, t, seg.bars * bar, music);
     if ($("modPiano").checked) {
-      for (let b = 0; b < seg.bars; b++) renderNotes(ctx, midis, { startAt: t + b * bar, strum: 0.02, dur: Math.min(bar, 2.2), dest: music, gain: 0.8 });
+      for (let b = 0; b < seg.bars; b++) renderNotes(ctx, midis, { startAt: t + b * bar, strum: 0.02, dur: Math.min(bar, 3), dest: music, gain: 0.8 });
     }
     seg.start = t;
     t += seg.bars * bar;
   }
   const end = t;
+  // Pad do tom: segura o tom da música atual (desde a contagem, como se ela estivesse tocando)
+  // e passa para o tom novo quando a próxima música começa, um sumindo enquanto o outro entra
+  const newSongAt = segments[segments.length - 1].start;
+  if ($("modPad").checked) {
+    synthPad(ctx, keyPadMidis(plan.fromKey), t0, newSongAt - t0, music, { attack: 1.2, release: 2 });
+    synthPad(ctx, keyPadMidis(plan.toKey), newSongAt - 0.3, end - newSongAt + 0.3, music, { attack: 1.5, release: 2.5 });
+  }
 
   card.classList.add("practicing");
   practiceStatus.hidden = false;
@@ -1876,11 +1888,12 @@ function startPractice(path, card) {
       practiceText.textContent = barIdx === 0
         ? "Contagem: " + (inBar + 1)
         : seg ? "Compasso " + barIdx + " de " + (totalBars - 1) + " · " + seg.chord + (seg.index === 0 ? " (fim da música atual)" : seg.index === segments.length - 1 ? " (começo da próxima)" : " (transição)") : "";
+      if ($("modPad").checked) practiceText.textContent += " · pad em " + (now >= newSongAt ? plan.toKey : plan.fromKey);
     }
     if (now < end + 0.3) practice.raf = requestAnimationFrame(tick);
   };
   practice.raf = requestAnimationFrame(tick);
-  practice.timer = setTimeout(stopPractice, (end - ctx.currentTime + 1.2) * 1000); // deixa o pad terminar de soar
+  practice.timer = setTimeout(stopPractice, (end - ctx.currentTime + 2.6) * 1000); // deixa o pad terminar de soar
 }
 $("practiceStop").addEventListener("click", stopPractice);
 
