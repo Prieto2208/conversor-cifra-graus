@@ -18,6 +18,9 @@
     --accent: #3F51C7;
     --accent-ink: #FFFFFF;
     --chord: #B04A2F;
+    /* Uma cor por grau no Mapa de graus */
+    --deg1: #3F51C7; --deg2: #0E7C72; --deg3: #7048E8; --deg4: #C2410C;
+    --deg5: #B91C1C; --deg6: #0369A1; --deg7: #6B7280;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
@@ -27,12 +30,16 @@
       color-scheme: dark;
       --bg: #151923; --surface: #1E2330; --ink: #E6E9F0; --muted: #9AA3B5;
       --line: #313849; --accent: #8E9BFF; --accent-ink: #12162A; --chord: #F0956F;
+      --deg1: #8E9BFF; --deg2: #4FD1C5; --deg3: #B197FC; --deg4: #FB923C;
+      --deg5: #F87171; --deg6: #60A5FA; --deg7: #A1A1AA;
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #151923; --surface: #1E2330; --ink: #E6E9F0; --muted: #9AA3B5;
     --line: #313849; --accent: #8E9BFF; --accent-ink: #12162A; --chord: #F0956F;
+    --deg1: #8E9BFF; --deg2: #4FD1C5; --deg3: #B197FC; --deg4: #FB923C;
+    --deg5: #F87171; --deg6: #60A5FA; --deg7: #A1A1AA;
   }
   *, *::before, *::after { box-sizing: inherit; }
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
@@ -165,6 +172,39 @@
   button.ghost.danger { background: transparent; color: var(--chord); }
   button:disabled { opacity: 0.6; cursor: default; }
 
+  /* Abas */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .tabs button {
+    background: transparent; border: 0; border-bottom: 3px solid transparent; border-radius: 0;
+    color: var(--muted); padding: 8px 14px; margin-bottom: -1px;
+  }
+  .tabs button[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Mapa de graus */
+  .map-controls {
+    display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: flex-end;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; margin-bottom: 16px;
+  }
+  .field-label { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  .segmented { display: inline-flex; border: 1px solid var(--accent); border-radius: 6px; overflow: hidden; }
+  .segmented button { border: 0; border-radius: 0; background: transparent; color: var(--accent); }
+  .segmented button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .map-wrap { overflow-x: auto; }
+  .map { width: 100%; border-collapse: separate; border-spacing: 6px; table-layout: fixed; min-width: 520px; }
+  .map th { width: 76px; text-align: left; font-weight: 700; padding: 0 4px; white-space: nowrap; }
+  .map th small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); }
+  .map td {
+    background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--deg);
+    border-radius: 8px; text-align: center; padding: 6px 2px 8px;
+  }
+  .map td .deg { display: block; font-size: 0.8rem; font-weight: 700; color: var(--deg); }
+  .map td .note { display: block; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 1.1rem; font-weight: 600; }
+  .map tr.focus td { background: var(--bg); border-color: var(--deg); }
+  .map tr.focus th { color: var(--accent); }
+  .map tr.dim { opacity: 0.35; }
+  .map-legend { font-size: 0.85rem; color: var(--muted); max-width: 80ch; }
+
   /* Celular: botões maiores e mais espaçados */
   @media (max-width: 600px) {
     main { padding: 20px 16px 40px; }
@@ -179,6 +219,16 @@
     .pane-head .btns { flex-wrap: wrap; gap: 8px; }
     .pane-head .btns button { padding: 8px 12px; }
     .lib-list li { gap: 10px; }
+    .tabs button { flex: 1; padding: 10px 8px; }
+    .map-controls { padding: 12px; gap: 12px; }
+    .map-controls .field { flex: 1 1 100%; }
+    .segmented { display: flex; }
+    .segmented button { flex: 1; padding: 10px 8px; }
+    .map { min-width: 0; border-spacing: 3px; }
+    .map th { width: 44px; font-size: 0.9rem; padding: 0 2px; }
+    .map td { padding: 4px 0 6px; border-radius: 6px; }
+    .map td .deg { font-size: 0.7rem; }
+    .map td .note { font-size: 0.85rem; }
   }
 </style>
 </head>
@@ -200,7 +250,7 @@
   <div class="topbar">
     <div>
       <h1>Conversor de cifra para graus</h1>
-      <p class="lead">Cole a cifra à esquerda. As linhas de acordes são convertidas em graus e a letra fica como está, na mesma posição.</p>
+      <p class="lead" id="leadText">Cole a cifra à esquerda. As linhas de acordes são convertidas em graus e a letra fica como está, na mesma posição.</p>
     </div>
     <div class="account">
       <button id="libOpen">Cifras salvas</button>
@@ -208,6 +258,12 @@
     </div>
   </div>
 
+  <nav class="tabs" role="tablist" aria-label="Ferramentas">
+    <button role="tab" id="tabConv" aria-controls="viewConv" aria-selected="true">Conversor</button>
+    <button role="tab" id="tabMap" aria-controls="viewMap" aria-selected="false">Mapa de graus</button>
+  </nav>
+
+  <div id="viewConv" role="tabpanel" aria-labelledby="tabConv">
   <section class="songbar" aria-label="Música">
     <input type="text" id="title" placeholder="Nome da música" maxlength="200" aria-label="Nome da música">
     <button class="ghost" id="newSong">Nova</button>
@@ -258,6 +314,34 @@
       <textarea id="gradesEdit" spellcheck="false" aria-label="Editar cifra em graus" hidden></textarea>
     </div>
   </div>
+  </div>
+
+  <section id="viewMap" role="tabpanel" aria-labelledby="tabMap" hidden>
+    <div class="map-controls">
+      <div class="field">
+        <span class="field-label" id="mapShowLabel">Mostrar</span>
+        <div class="segmented" role="group" aria-labelledby="mapShowLabel">
+          <button type="button" id="mapNotes" aria-pressed="true">Notas</button>
+          <button type="button" id="mapChords" aria-pressed="false">Acordes do campo harmônico</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="mapOrder">Ordem</label>
+        <select id="mapOrder">
+          <option value="chromatic">Notas (C, Db, D...)</option>
+          <option value="fifths">Ciclo das quintas (C, G, D...)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="mapFocus">Destacar tom</label>
+        <select id="mapFocus"><option value="">Nenhum</option></select>
+      </div>
+    </div>
+    <div class="map-wrap">
+      <table class="map" id="mapTable" aria-label="Escalas maiores e seus graus"></table>
+    </div>
+    <p class="map-legend">Cada linha é uma escala maior; o número em cima de cada bloco é o grau. Os acordes do campo harmônico seguem o padrão de todo tom maior: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto. A coluna da esquerda mostra a armadura (quantos sustenidos ou bemóis o tom tem).</p>
+  </section>
 </main>
 
 <dialog id="nameDialog" aria-labelledby="nameTitle">
@@ -483,6 +567,33 @@ function transposeText(text, fromKey, toKey) {
     result = text.split("\n").map((line) => TOM_LINE_RE.test(line) ? line : transposeLine(line, from, to)).join("\n");
   }
   return setTomLine(result, toKey.root, toKey.mode);
+}
+
+// ---------- 4c. Escalas maiores (Mapa de graus) ----------
+// Tons como costumam ser escritos (Db em vez de C#, F# em vez de Gb...)
+const MAP_KEYS = ["C", "Db", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+const FIFTHS_ORDER = ["C", "G", "D", "A", "E", "B", "F#", "Db", "Ab", "Eb", "Bb", "F"];
+const MAJOR_STEPS = [0, 2, 4, 5, 7, 9, 11];
+const FIELD_CHORDS = ["", "m", "m", "", "", "m", "°"]; // campo harmônico maior: 1 4 5 maiores, 2 3 6 menores, 7 diminuto
+
+// Escala maior escrita pela teoria: uma letra para cada grau, com o acidente certo
+// (F# maior tem E#, não F; Db maior tem Gb, não F#)
+function majorScale(tonicName) {
+  const letter = LETTERS.indexOf(tonicName[0]);
+  const tonic = noteToSemitone(tonicName[0], tonicName.slice(1));
+  return MAJOR_STEPS.map((step, k) => {
+    const i = (letter + k) % 7;
+    let diff = (((tonic + step - LETTER_SEMITONES[i]) % 12) + 12) % 12;
+    if (diff > 6) diff -= 12;
+    return LETTERS[i] + (diff > 0 ? "#".repeat(diff) : "b".repeat(-diff));
+  });
+}
+
+// Armadura: quantos sustenidos ou bemóis a escala tem (ex.: D = "2#", Eb = "3b")
+function keySignature(scale) {
+  const sharps = scale.filter((n) => n.includes("#")).length;
+  const flats = scale.filter((n) => n.includes("b")).length;
+  return sharps ? sharps + "#" : flats ? flats + "b" : "0";
 }
 
 // ---------- 5. Interface ----------
@@ -776,6 +887,70 @@ input.value = EXAMPLE;
 detectKey();
 render();
 
+// ---------- 6b. Abas ----------
+const tabConv = $("tabConv"), tabMap = $("tabMap"), viewConv = $("viewConv"), viewMap = $("viewMap");
+const LEAD_CONV = $("leadText").textContent;
+function showTab(name) {
+  const map = name === "map";
+  tabConv.setAttribute("aria-selected", String(!map));
+  tabMap.setAttribute("aria-selected", String(map));
+  viewConv.hidden = map;
+  viewMap.hidden = !map;
+  $("leadText").textContent = map ? "Todas as escalas maiores com o grau de cada nota, para estudar e praticar." : LEAD_CONV;
+}
+tabConv.addEventListener("click", () => showTab("conv"));
+tabMap.addEventListener("click", () => showTab("map"));
+
+// ---------- 6c. Mapa de graus ----------
+const mapTable = $("mapTable"), mapOrder = $("mapOrder"), mapFocus = $("mapFocus");
+const mapNotesBtn = $("mapNotes"), mapChordsBtn = $("mapChords");
+let mapShowChords = false;
+MAP_KEYS.forEach((k) => mapFocus.add(new Option(k + " maior", k)));
+
+function renderMap() {
+  const keys = mapOrder.value === "fifths" ? FIFTHS_ORDER : MAP_KEYS;
+  const focus = mapFocus.value;
+  const rows = keys.map((key) => {
+    const scale = majorScale(key);
+    const tr = document.createElement("tr");
+    if (focus) tr.className = key === focus ? "focus" : "dim";
+    const th = document.createElement("th");
+    th.scope = "row";
+    th.textContent = key;
+    const sig = document.createElement("small");
+    sig.textContent = keySignature(scale);
+    th.append(sig);
+    tr.append(th);
+    scale.forEach((note, k) => {
+      const td = document.createElement("td");
+      td.style.setProperty("--deg", `var(--deg${k + 1})`);
+      const deg = document.createElement("span");
+      deg.className = "deg";
+      deg.textContent = String(k + 1);
+      const name = document.createElement("span");
+      name.className = "note";
+      name.textContent = mapShowChords ? note + FIELD_CHORDS[k] : note;
+      td.append(deg, name);
+      td.title = "Grau " + (k + 1) + " de " + key + " maior: " + name.textContent;
+      tr.append(td);
+    });
+    return tr;
+  });
+  mapTable.replaceChildren(...rows);
+}
+
+function setMapMode(chords) {
+  mapShowChords = chords;
+  mapNotesBtn.setAttribute("aria-pressed", String(!chords));
+  mapChordsBtn.setAttribute("aria-pressed", String(chords));
+  renderMap();
+}
+mapNotesBtn.addEventListener("click", () => setMapMode(false));
+mapChordsBtn.addEventListener("click", () => setMapMode(true));
+mapOrder.addEventListener("change", renderMap);
+mapFocus.addEventListener("change", renderMap);
+renderMap();
+
 // ---------- 7. Registro de cifras (Supabase) ----------
 // A chave "anon" é pública por natureza: o acesso aos dados é protegido pelas
 // regras de segurança (RLS) do banco, que só liberam a tabela para quem está logado.
@@ -840,6 +1015,7 @@ function setSession(session) {
   document.body.dataset.auth = session ? "in" : "out";
   if (!session && wasIn) {
     // Ao sair, limpa a tela para não deixar nenhuma cifra visível
+    showTab("conv");
     currentId = null;
     savedSnapshot = "";
     delete document.body.dataset.view;

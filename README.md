@@ -15,6 +15,10 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 - Registro de cifras (com login): salvar, buscar, abrir para editar e excluir cifras, guardadas no Supabase
 - A conversão roda no navegador; só as cifras que você salva vão para o banco
 
+## Mapa de graus
+
+Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, Db maior tem Gb), o grau em cima de cada nota, a armadura de cada tom e a opção de ver os acordes do campo harmônico (1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto). Dá para ordenar pelas notas ou pelo ciclo das quintas e destacar um tom.
+
 ## Como usar
 
 Abra a página, cole a cifra na caixa da esquerda e copie ou baixe o resultado da direita.
