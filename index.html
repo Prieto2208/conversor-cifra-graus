@@ -216,76 +216,6 @@
   .map thead th { text-align: center; font-size: 0.75rem; color: var(--muted); font-weight: 600; white-space: normal; line-height: 1.2; }
   .map thead th b { display: block; color: var(--ink); font-size: 0.85rem; }
 
-  /* Mudar de tom */
-  .mod-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
-  .mod-song {
-    margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 16px 16px; display: flex; flex-wrap: wrap; gap: 12px;
-  }
-  .mod-song legend { font-weight: 700; padding: 0 6px; }
-  .mod-song .field { flex: 1 1 140px; }
-  .mod-song select { width: 100%; }
-  @media (max-width: 600px) {
-    .mod-controls { grid-template-columns: 1fr; }
-    .mod-card { padding: 12px; }
-    .mod-seq { gap: 3px; }
-    .mod-seq .chip { min-width: 0; padding: 6px 7px; }
-    .mod-seq .chip strong { font-size: 1rem; }
-    .mod-seq .chip small { font-size: 0.65rem; }
-  }
-  .mod-summary { font-size: 1.05rem; margin: 0 0 14px; }
-  .mod-summary b { color: var(--accent); }
-  .mod-paths, .mod-extra { display: grid; gap: 12px; margin-bottom: 12px; }
-  .mod-card {
-    background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent);
-    border-radius: 10px; padding: 14px 16px;
-  }
-  .mod-card h3 { margin: 0 0 10px; font-size: 1rem; }
-  .mod-card p { margin: 8px 0 0; color: var(--muted); font-size: 0.92rem; line-height: 1.45; }
-  .mod-card p b { color: var(--ink); }
-  .mod-seq { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .mod-seq .arrow { color: var(--muted); }
-  .chip {
-    display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 64px;
-    background: var(--bg); color: var(--ink); border: 1px solid var(--line); padding: 6px 10px;
-  }
-  .chip strong { font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 1.1rem; }
-  .chip small { font-size: 0.72rem; color: var(--muted); font-weight: 600; }
-  .chip.from { border-color: var(--deg4); }
-  .chip.to { border-color: var(--deg1); }
-  .chip.pass strong { color: var(--chord); }
-  .mod-play { margin-top: 10px; }
-  .mod-card.info { border-left-color: var(--deg2); }
-  .mod-card .btns { margin-top: 10px; flex-wrap: wrap; }
-  .mod-card .btns .mod-play { margin-top: 0; }
-
-  /* Tocar no tempo */
-  .practice {
-    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-    padding: 12px 16px; margin-bottom: 14px; display: flex; flex-direction: column; gap: 10px;
-  }
-  /* Tocando: fica só o compasso, preso no topo enquanto rola os caminhos */
-  .practice.playing { position: sticky; top: 0; z-index: 2; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25); }
-  .practice.playing .practice-sub, .practice.playing .practice-controls { display: none; }
-  .practice-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
-  .practice-sub { font-size: 0.85rem; color: var(--muted); }
-  .practice-controls { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: flex-end; }
-  .bpm { display: flex; align-items: center; gap: 8px; }
-  .bpm input[type="range"] { width: 140px; accent-color: var(--accent); }
-  .bpm input[type="number"] {
-    width: 64px; font: inherit; color: var(--ink); background: var(--bg);
-    border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px;
-  }
-  .practice-status { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 600; }
-  .beats { display: flex; gap: 6px; }
-  .beats i { width: 14px; height: 14px; border-radius: 50%; background: var(--line); transition: background 0.05s; }
-  .beats i.on { background: var(--accent); }
-  .beats i.on.accent { background: var(--chord); }
-  .practice-status button { margin-left: auto; }
-  .chip.now { background: var(--accent); border-color: var(--accent); }
-  .chip.now strong, .chip.now small { color: var(--accent-ink); }
-  .mod-card.practicing { box-shadow: 0 0 0 2px var(--accent); }
-
   /* Treino */
   .score { margin-left: auto; font-size: 0.95rem; }
   .score strong { color: var(--accent); }
@@ -380,7 +310,6 @@
   <nav class="tabs" role="tablist" aria-label="Ferramentas">
     <button role="tab" id="tabConv" aria-controls="viewConv" aria-selected="true">Conversor</button>
     <button role="tab" id="tabMap" aria-controls="viewMap" aria-selected="false">Mapa de graus</button>
-    <button role="tab" id="tabMod" aria-controls="viewMod" aria-selected="false">Mudar de tom</button>
     <button role="tab" id="tabTrain" aria-controls="viewTrain" aria-selected="false">Treino</button>
   </nav>
 
@@ -474,65 +403,6 @@
     </div>
     <p class="map-legend" id="mapLegend"></p>
     <p class="map-legend" id="mapOrderLegend"></p>
-  </section>
-
-  <section id="viewMod" role="tabpanel" aria-labelledby="tabMod" hidden>
-    <div class="mod-controls">
-      <fieldset class="mod-song">
-        <legend>Música atual</legend>
-        <div class="field">
-          <label for="modFrom">Tom</label>
-          <select id="modFrom"></select>
-        </div>
-        <div class="field">
-          <label for="modLast">Termina no acorde</label>
-          <select id="modLast"></select>
-        </div>
-      </fieldset>
-      <fieldset class="mod-song">
-        <legend>Próxima música</legend>
-        <div class="field">
-          <label for="modTo">Tom</label>
-          <select id="modTo"></select>
-        </div>
-        <div class="field">
-          <label for="modFirst">Começa no acorde</label>
-          <select id="modFirst"></select>
-        </div>
-      </fieldset>
-    </div>
-    <p class="mod-summary" id="modSummary" aria-live="polite"></p>
-    <div class="practice">
-      <div class="practice-head">
-        <strong>Tocar no tempo</strong>
-        <span class="practice-sub">2 compassos do fim da música, a transição e 2 compassos do começo da próxima, com 1 compasso de contagem. O pad fica no tom da música atual e passa para o tom novo quando a próxima começa.</span>
-      </div>
-      <div class="practice-controls">
-        <div class="field">
-          <label for="modBpm">Andamento (bpm)</label>
-          <div class="bpm"><input type="range" id="modBpmRange" min="40" max="160" value="65" aria-label="Andamento"><input type="number" id="modBpm" min="40" max="160" value="65"></div>
-        </div>
-        <div class="field">
-          <label for="modBars">Cada acorde de passagem</label>
-          <select id="modBars">
-            <option value="1">1 compasso</option>
-            <option value="2">2 compassos</option>
-          </select>
-        </div>
-        <label class="check"><input type="checkbox" id="modClick" checked> Metrônomo</label>
-        <label class="check"><input type="checkbox" id="modPad" checked> Pad do tom</label>
-        <label class="check"><input type="checkbox" id="modKeys" checked> Teclado</label>
-        <label class="check"><input type="checkbox" id="modGuitar" checked> Guitarra</label>
-        <label class="check"><input type="checkbox" id="modBass" checked> Baixo</label>
-      </div>
-      <div class="practice-status" id="practiceStatus" hidden>
-        <div class="beats" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <span id="practiceText"></span>
-        <button type="button" class="danger" id="practiceStop">Parar</button>
-      </div>
-    </div>
-    <div class="mod-paths" id="modPaths"></div>
-    <div class="mod-extra" id="modExtra"></div>
   </section>
 
   <section id="viewTrain" role="tabpanel" aria-labelledby="tabTrain" hidden>
@@ -862,121 +732,6 @@ function mapOrderGroups(order) {
     return groups;
   }
   return [MAP_KEYS];
-}
-
-// ---------- Mudar de tom (passar de uma música para a próxima sem parar) ----------
-const fieldOf = (key) => majorScale(key).map((n, i) => n + FIELD_CHORDS[i]);
-// Notas (0-11) de um acorde, ex.: "A7" -> A C# E G
-const chordTones = (name) => new Set(chordMidis(name).map((m) => m % 12));
-// Mesmo acorde mesmo com nomes diferentes (F# e Gb): compara fundamental e qualidade
-const chordId = (name) => { const m = name.match(/^([A-G][#b]?)(.*)$/); return semitoneOf(m[1]) + ":" + m[2]; };
-const STEP_NAMES = ["", "meio tom", "um tom", "um tom e meio", "dois tons", "dois tons e meio", "três tons"];
-const chordRoot = (chord) => chord.match(/^[A-G][#b]?/)[0];
-// Nota com quantos acidentes tiver (F## = G) -> 0-11
-const fullSemitone = (n) => (noteToSemitone(n[0], "") + (n.match(/#/g) || []).length - (n.slice(1).match(/b/g) || []).length + 120) % 12;
-// Escrita simples quando a teórica ficaria estranha (E#, B#, Cb, Fb, dobrados)
-const plainNote = (n) => (/##|bb|^E#|^B#|^Cb|^Fb/.test(n) ? ROOT_OPTIONS[fullSemitone(n)] : n);
-const dominantOf = (chord) => plainNote(majorScale(chordRoot(chord))[4]) + "7"; // 5 com sétima: puxa para o acorde
-const twoOf = (chord) => plainNote(majorScale(chordRoot(chord))[1]) + "m7";      // 2 menor com sétima
-
-// Caminhos para ligar o ÚLTIMO acorde da música atual ao PRIMEIRO acorde da próxima.
-// lastDeg/firstDeg: grau (1-7) desses acordes no tom de cada música.
-function transitionPlan(fromKey, lastDeg, toKey, firstDeg) {
-  const fromField = fieldOf(fromKey), toField = fieldOf(toKey);
-  const last = fromField[lastDeg - 1], first = toField[firstDeg - 1];
-  const up = (semitoneOf(toKey) - semitoneOf(fromKey) + 12) % 12;
-  const distance = up === 0 ? "é o mesmo" : up <= 6 ? "sobe " + STEP_NAMES[up] : "desce " + STEP_NAMES[12 - up];
-  const firstRoot = chordRoot(first);
-  const L = semitoneOf(chordRoot(last)), F = semitoneOf(firstRoot);
-  const lastStep = { chord: last, label: lastDeg + " em " + fromKey };
-  const firstStep = { chord: first, label: firstDeg + " em " + toKey };
-  const toScale = majorScale(toKey), fromScale = majorScale(fromKey);
-  const spell = (pc) => toScale.find((n) => semitoneOf(n) === pc) || fromScale.find((n) => semitoneOf(n) === pc) || ROOT_OPTIONS[pc];
-
-  const paths = [];
-  const seen = new Set();
-  const add = (title, middle, why) => {
-    const steps = [lastStep, ...middle, firstStep];
-    const id = steps.map((x) => chordId(x.chord)).join(">");
-    if (seen.has(id)) return;
-    seen.add(id);
-    paths.push({ title, steps, seq: steps.map((x) => x.chord), why });
-  };
-  if (chordId(last) === chordId(first)) {
-    add("Mesmo acorde", [], `A música atual termina no ${last} e a próxima começa nele: é só emendar.`);
-  }
-
-  // Quantas quartas separam o último acorde do primeiro (G -> C -> F -> Bb = 3)
-  let fourths = 0;
-  for (let k = 1; k <= 6; k++) if ((L + 5 * k) % 12 === F) { fourths = k; break; }
-  const V = dominantOf(first), ii = twoOf(first);
-
-  // 1. 2-5 do primeiro acorde
-  if (chordId(ii) !== chordId(last)) {
-    add("2-5 do primeiro acorde (o mais suave)",
-      [{ chord: ii, label: "2 do " + firstRoot }, { chord: V, label: "5 do " + firstRoot }],
-      `${ii} e ${V} são o 2 e o 5 do ${first}: a banda vai "conversando" até o primeiro acorde da próxima música.`);
-  }
-  // 2. Dominante do primeiro acorde (ou atalho, se o último já é o 5 dele)
-  if (fourths === 1) {
-    add(`Atalho: o ${last} já é o 5 do ${first}`,
-      [{ chord: chordRoot(last) + "7", label: "5 do " + firstRoot }],
-      `O ${last} fica a uma quarta do ${first}: é só colocar a sétima (${chordRoot(last)}7) e entrar no ${first}.`);
-  } else {
-    add("Dominante do primeiro acorde (o mais rápido)",
-      [{ chord: V, label: "5 do " + firstRoot }],
-      `O ${V} é o 5 do ${first} e "puxa" para ele. Toque o ${V} no último compasso e entre na próxima música.`
-        + (chordRoot(V) === toKey || plainNote(chordRoot(V)) === toKey ? ` Bônus: o ${chordRoot(V)} é a tônica de ${toKey}, então o tom novo já aparece.` : ""));
-  }
-  // 3. Ciclo das quartas: do último até o primeiro, de quarta em quarta (2 a 4 passos)
-  if (fourths >= 2 && fourths <= 4) {
-    const middle = [];
-    let r = L;
-    for (let i = 1; i < fourths; i++) {
-      r = (r + 5) % 12;
-      const next = (r + 5) % 12;
-      middle.push({ chord: spell(r) + "7", label: "5 do " + spell(next) });
-    }
-    add("Ciclo das quartas", middle,
-      `Do ${last} ao ${first} são ${fourths} quartas: cada acorde (com sétima) puxa para o seguinte, como uma escada.`);
-  }
-  // 4. Firmar o tom novo antes de começar pelo primeiro acorde
-  if (firstDeg !== 1) {
-    const V7new = plainNote(toScale[4]) + "7";
-    add(`Passando pela tônica de ${toKey}`,
-      [{ chord: V7new, label: "5 em " + toKey }, { chord: toField[0], label: "1 em " + toKey }],
-      `Primeiro firma o tom de ${toKey} (${V7new} → ${toField[0]}) e só então começa a música pelo ${first}.`);
-  }
-
-  // Truques de ligação
-  const tricks = [];
-  const inNew = toField.findIndex((c) => chordId(c) === chordId(last));
-  if (inNew >= 0) {
-    const nameThere = toField[inNew] === last ? "" : `, onde se escreve ${toField[inNew]}`;
-    tricks.push(`O ${last} já faz parte de ${toKey} (é o ${inNew + 1} lá${nameThere}): ele mesmo pode ser a ponte.`);
-  }
-  const sameRoot = toField.findIndex((c, i) => i !== inNew && semitoneOf(chordRoot(c)) === L && chordId(c) !== chordId(last));
-  if (sameRoot >= 0) {
-    const target = toField[sameRoot];
-    const changed = [...chordTones(last)].filter((pc) => !chordTones(target).has(pc)).map(spell);
-    const into = [...chordTones(target)].filter((pc) => !chordTones(last).has(pc)).map(spell);
-    // Só é truque quando muda exatamente uma nota (ex.: G -> Gm, o Si desce para Si bemol)
-    if (changed.length === 1 && into.length === 1) {
-      tricks.push(`Mude só uma nota: o ${last} vira ${target} (${changed[0]} → ${into[0]}) e você já está no campo de ${toKey}, onde ele é o ${sameRoot + 1}.`);
-    }
-  }
-  // Nota de ligação: nota que o último acorde e o primeiro acorde de passagem têm em comum
-  const bridge = paths.find((p) => p.steps.length > 2);
-  const bridgeChord = bridge ? bridge.steps[1].chord : first;
-  const link = [...chordTones(bridgeChord)].filter((pc) => chordTones(last).has(pc)).map(spell);
-
-  const toIds = toField.map(chordId);
-  const commons = fromField
-    .map((c, i) => ({ fromDeg: i + 1, toDeg: toIds.indexOf(chordId(c)) + 1 }))
-    .filter((c) => c.toDeg > 0)
-    .map((c) => ({ ...c, chord: toField[c.toDeg - 1] }));
-
-  return { fromKey, toKey, lastDeg, firstDeg, last, first, distance, paths, tricks, link, bridgeChord, commons };
 }
 
 // Notas (MIDI) para tocar um acorde, numa região natural (como um violão ou teclado de banda):
@@ -1423,11 +1178,9 @@ render();
 const TABS = {
   conv: { tab: $("tabConv"), view: $("viewConv"), lead: $("leadText").textContent },
   map: { tab: $("tabMap"), view: $("viewMap"), lead: "Todas as escalas maiores com o grau de cada nota, para estudar e praticar." },
-  mod: { tab: $("tabMod"), view: $("viewMod"), lead: "Como passar de uma música para a próxima, em outro tom, sem parar a banda." },
   train: { tab: $("tabTrain"), view: $("viewTrain"), lead: "Treine graus, campo harmônico e ouvido." },
 };
 function showTab(name) {
-  stopPractice(); // o treino no tempo só toca com a aba aberta
   for (const [key, t] of Object.entries(TABS)) {
     t.tab.setAttribute("aria-selected", String(key === name));
     t.view.hidden = key !== name;
@@ -1479,7 +1232,7 @@ function synthFor(ctx) {
 }
 
 // Uma nota: duas camadas + filtro que fecha + envelope (ataque rápido, decaimento, soltura)
-function synthNote(ctx, midi, start, dur, level, dest = null) {
+function synthNote(ctx, midi, start, dur, level) {
   const { wave, input } = synthFor(ctx);
   const freq = 440 * 2 ** ((midi - 69) / 12);
   const filter = ctx.createBiquadFilter();
@@ -1494,7 +1247,7 @@ function synthNote(ctx, midi, start, dur, level, dest = null) {
   env.gain.setValueAtTime(level * 0.3 * Math.max(0.05, 1 - (dur - 0.9) / 3), start + Math.max(0.91, dur));
   env.gain.exponentialRampToValueAtTime(0.0001, start + dur + 0.4);
   filter.connect(env);
-  env.connect(dest || input);
+  env.connect(input);
   for (const [detune, amp] of [[0, 1], [4, 0.5]]) {
     const osc = ctx.createOscillator();
     osc.setPeriodicWave(wave);
@@ -1510,162 +1263,10 @@ function synthNote(ctx, midi, start, dur, level, dest = null) {
 }
 
 // Toca notas MIDI (acordes levemente "dedilhados", do grave para o agudo)
-function renderNotes(ctx, midis, { when = 0, strum = 0.025, dur = 1.4, startAt = ctx.currentTime + 0.03, dest = null, gain = 1 } = {}) {
-  const level = (0.2 * gain) / Math.sqrt(midis.length); // volume parecido com o de antes
-  midis.forEach((m, i) => synthNote(ctx, m, startAt + when + i * strum, dur, i === 0 && midis.length > 1 ? level * 1.2 : level, dest));
+function renderNotes(ctx, midis, { when = 0, strum = 0.025, dur = 1.4, startAt = ctx.currentTime + 0.03 } = {}) {
+  const level = 0.2 / Math.sqrt(midis.length); // volume parecido com o de antes
+  midis.forEach((m, i) => synthNote(ctx, m, startAt + when + i * strum, dur, i === 0 && midis.length > 1 ? level * 1.2 : level));
 }
-
-// Pad: som longo e macio de fundo (duas ondas levemente desafinadas, filtro bem fechado,
-// entrada e saída lentas). Ao trocar, um some enquanto o outro entra.
-function fadeCurve(peak, up) {
-  return Float32Array.from({ length: 64 }, (_, i) => {
-    const x = (i / 63) * Math.PI / 2;
-    return peak * (up ? Math.sin(x) : Math.cos(x));
-  });
-}
-function synthPad(ctx, midis, start, dur, dest, { attack = 0.45, release = 0.9 } = {}) {
-  const level = 0.07 / Math.sqrt(midis.length);
-  midis.forEach((midi, i) => {
-    const freq = 440 * 2 ** ((midi - 69) / 12);
-    const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = i === 0 ? 400 : 1100; // baixo mais escuro
-    filter.Q.value = 0.3;
-    const env = ctx.createGain();
-    const peak = i === 0 ? level * 0.8 : level;
-    // Entrada e saída em curva de seno/cosseno: num cruzamento, um pad some enquanto o outro
-    // entra e o volume somado fica constante (sem buraco nem pulo no meio)
-    env.gain.setValueCurveAtTime(fadeCurve(peak, true), start, attack);
-    env.gain.setValueCurveAtTime(fadeCurve(peak, false), start + Math.max(dur, attack + 0.01), release);
-    filter.connect(env);
-    env.connect(dest);
-    for (const detune of [-8, 8]) {
-      const osc = ctx.createOscillator();
-      osc.type = "sawtooth";
-      osc.frequency.value = freq;
-      osc.detune.value = detune;
-      osc.connect(filter);
-      osc.start(start);
-      osc.stop(start + dur + release + 0.1);
-    }
-  });
-}
-
-// Clique do metrônomo (o 1º tempo do compasso é mais agudo e mais forte)
-function synthClick(ctx, time, accent, dest) {
-  const osc = ctx.createOscillator();
-  osc.type = "sine";
-  osc.frequency.value = accent ? 1600 : 1050;
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.0001, time);
-  env.gain.exponentialRampToValueAtTime(accent ? 0.35 : 0.2, time + 0.002);
-  env.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
-  osc.connect(env);
-  env.connect(dest);
-  osc.start(time);
-  osc.stop(time + 0.06);
-}
-
-// ---------- Banda do "Tocar no tempo": guitarra e baixo ----------
-// Guitarra: corda dedilhada (Karplus-Strong). Um ruído curto circula num atraso do tamanho de
-// um período da nota e vai sendo suavizado, como uma corda que vibra e perde o brilho.
-const pluckCache = new WeakMap(); // por contexto de áudio: buffer de cada nota
-function pluckBuffer(ctx, midi) {
-  if (!pluckCache.has(ctx)) pluckCache.set(ctx, new Map());
-  const cache = pluckCache.get(ctx);
-  if (cache.has(midi)) return cache.get(midi);
-  const sr = ctx.sampleRate;
-  const freq = 440 * 2 ** ((midi - 69) / 12);
-  const n = Math.max(2, Math.round(sr / freq - 0.5)); // o filtro de média atrasa meia amostra
-  const len = Math.round(sr * 3);
-  const buf = ctx.createBuffer(1, len, sr);
-  const y = buf.getChannelData(0);
-  let prev = 0;
-  for (let i = 0; i < n; i++) { prev = 0.5 * prev + 0.5 * (Math.random() * 2 - 1); y[i] = prev; } // ataque menos áspero
-  const decay = midi < 52 ? 0.997 : 0.995;
-  for (let i = n; i < len; i++) y[i] = decay * 0.5 * (y[i - n] + y[i - n - 1 < 0 ? 0 : i - n - 1]);
-  // O atraso inteiro desafina um pouco: a velocidade de leitura corrige para a nota exata
-  const entry = { buf, rate: (freq * (n + 0.5)) / sr };
-  cache.set(midi, entry);
-  return entry;
-}
-
-// Acorde na pestana em forma de Mi (fundamental na 6ª corda, entre Mi2 e Ré#3):
-// fundamental, quinta, oitava (ou sétima), terça, quinta e oitava
-function guitarMidis(name) {
-  const m = name.match(/^([A-G])([#b]?)(m|°)?(7)?$/);
-  const root = 40 + ((noteToSemitone(m[1], m[2]) - 4 + 12) % 12);
-  const third = m[3] ? 3 : 4, fifth = m[3] === "°" ? 6 : 7;
-  return [0, fifth, m[4] ? 10 : 12, 12 + third, 12 + fifth, 24].map((x) => root + x);
-}
-
-// Uma batida: cordas em sequência (para baixo: grave -> agudo; para cima: só as 4 agudas,
-// agudo -> grave e mais fraca). A corda soa até a próxima batida, que a abafa.
-function strumGuitar(ctx, midis, time, until, down, dest) {
-  const strings = down ? midis : midis.slice(2).reverse();
-  const level = down ? 0.16 : 0.1;
-  strings.forEach((midi, i) => {
-    const { buf, rate } = pluckBuffer(ctx, midi);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.playbackRate.value = rate;
-    const g = ctx.createGain();
-    const at = time + i * (down ? 0.011 : 0.008);
-    g.gain.setValueAtTime(level, at);
-    g.gain.setValueAtTime(level, until);
-    g.gain.linearRampToValueAtTime(0, until + 0.04);
-    src.connect(g);
-    g.connect(dest);
-    src.start(at);
-    src.stop(until + 0.05);
-  });
-}
-
-// Corpo do violão/guitarra: realça os médios-graves e tira o chiado do agudo
-function guitarBus(ctx, dest) {
-  const body = ctx.createBiquadFilter();
-  body.type = "peaking"; body.frequency.value = 220; body.Q.value = 1; body.gain.value = 4;
-  const tone = ctx.createBiquadFilter();
-  tone.type = "lowpass"; tone.frequency.value = 3800; tone.Q.value = 0.4;
-  body.connect(tone);
-  tone.connect(dest);
-  return body;
-}
-
-// Baixo: triângulo + um pouco de dente de serra (para aparecer em caixinhas de som pequenas),
-// filtro que fecha depois do ataque e envelope de nota pinçada
-function synthBass(ctx, midi, start, dur, dest) {
-  const freq = 440 * 2 ** ((midi - 69) / 12);
-  const filter = ctx.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.Q.value = 0.7;
-  filter.frequency.setValueAtTime(1100, start);
-  filter.frequency.exponentialRampToValueAtTime(420, start + 0.35);
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0.0001, start);
-  env.gain.exponentialRampToValueAtTime(0.13, start + 0.012);
-  env.gain.exponentialRampToValueAtTime(0.085, start + 0.4);
-  env.gain.setValueAtTime(0.085, start + Math.max(0.41, dur - 0.06));
-  env.gain.exponentialRampToValueAtTime(0.0001, start + Math.max(0.41, dur - 0.06) + 0.08);
-  filter.connect(env);
-  env.connect(dest);
-  for (const [type, amp] of [["triangle", 1], ["sawtooth", 0.25]]) {
-    const osc = ctx.createOscillator();
-    osc.type = type;
-    osc.frequency.value = freq;
-    const g = ctx.createGain();
-    g.gain.value = amp;
-    osc.connect(g);
-    g.connect(filter);
-    osc.start(start);
-    osc.stop(start + dur + 0.1);
-  }
-}
-// Fundamental do acorde no registro do baixo (entre Mi1 e Ré#2)
-const bassRoot = (name) => {
-  const m = name.match(/^([A-G])([#b]?)/);
-  return 28 + ((noteToSemitone(m[1], m[2]) - 4 + 12) % 12);
-};
 
 function playMidis(midis, opts = {}) {
   const ctx = audio();
@@ -1806,247 +1407,6 @@ mapFieldBtns.forEach((btn) => btn.addEventListener("click", () => {
 mapOrder.addEventListener("change", renderMap);
 mapFocus.addEventListener("change", renderMap);
 renderMap();
-
-// ---------- 6f. Mudar de tom ----------
-const modFrom = $("modFrom"), modTo = $("modTo"), modLast = $("modLast"), modFirst = $("modFirst");
-const modPaths = $("modPaths"), modExtra = $("modExtra"), modSummary = $("modSummary");
-MAP_KEYS.forEach((k) => { modFrom.add(new Option(k + " maior", k)); modTo.add(new Option(k + " maior", k)); });
-
-// Opções de acorde de um tom: "G (5)"; mantém o grau escolhido quando o tom muda
-function fillChordSelect(sel, key, deg) {
-  sel.replaceChildren(...fieldOf(key).map((c, i) => new Option(c + "  (" + (i + 1) + ")", String(i + 1))));
-  sel.value = String(deg);
-}
-// Exemplo: música em C que termina no G (5); a próxima em F começa no Bb (4)
-modFrom.value = "C"; modTo.value = "F";
-fillChordSelect(modLast, "C", 5);
-fillChordSelect(modFirst, "F", 4);
-
-function modCard(title, cls = "") {
-  const card = document.createElement("div");
-  card.className = "mod-card " + cls;
-  const h = document.createElement("h3");
-  h.textContent = title;
-  card.append(h);
-  return card;
-}
-const modP = (text) => { const p = document.createElement("p"); p.textContent = text; return p; };
-
-function renderMod() {
-  stopPractice(); // os cartões vão ser recriados
-  const plan = transitionPlan(modFrom.value, Number(modLast.value), modTo.value, Number(modFirst.value));
-  // texto montado pelo próprio site
-  modSummary.innerHTML = `A música em <b>${plan.fromKey}</b> termina no <b>${plan.last}</b> (${plan.lastDeg}); a próxima, em <b>${plan.toKey}</b>, começa no <b>${plan.first}</b> (${plan.firstDeg}). O tom ${plan.distance}.`;
-  modPaths.replaceChildren(...plan.paths.map((p) => {
-    const card = modCard(p.title);
-    const seq = document.createElement("div");
-    seq.className = "mod-seq";
-    p.steps.forEach((step, i) => {
-      if (i) { const a = document.createElement("span"); a.className = "arrow"; a.textContent = "→"; seq.append(a); }
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "chip " + (i === 0 ? "from" : i === p.steps.length - 1 ? "to" : "pass");
-      const name = document.createElement("strong");
-      name.textContent = step.chord;
-      const deg = document.createElement("small");
-      deg.textContent = step.label;
-      chip.append(name, deg);
-      chip.title = "Ouvir " + step.chord;
-      chip.addEventListener("click", () => playMidis(chordMidis(step.chord), { strum: 0.03 }));
-      seq.append(chip);
-    });
-    const play = document.createElement("button");
-    play.type = "button";
-    play.className = "ghost mod-play";
-    play.textContent = "Ouvir caminho";
-    play.addEventListener("click", () => playProgression(p.seq, 1.1));
-    const tempo = document.createElement("button");
-    tempo.type = "button";
-    tempo.className = "mod-play";
-    tempo.textContent = "Tocar no tempo";
-    tempo.addEventListener("click", () => startPractice(p, card, plan));
-    const btns = document.createElement("div");
-    btns.className = "btns";
-    btns.append(tempo, play);
-    card.append(seq, modP(p.why), btns);
-    return card;
-  }));
-
-  const extras = [];
-  if (plan.tricks.length) {
-    const c = modCard("Truque de ligação", "info");
-    plan.tricks.forEach((t) => c.append(modP(t)));
-    extras.push(c);
-  }
-  const linkCard = modCard("Nota de ligação", "info");
-  linkCard.append(modP(plan.link.length
-    ? `Segure ${plan.link.length > 1 ? "uma destas notas" : "a nota"} ${plan.link.join(" ou ")}: ${plan.link.length > 1 ? "elas estão" : "ela está"} no ${plan.last} e no ${plan.bridgeChord}. Quem está no teclado, na guitarra ou cantando pode sustentar essa nota enquanto a banda troca.`
-    : `O ${plan.last} não tem nota em comum com o ${plan.bridgeChord}. Uma pausa curta de toda a banda (um "breque") antes da troca também funciona bem.`));
-  extras.push(linkCard);
-  const commonCard = modCard("Acordes em comum entre os dois tons", "info");
-  commonCard.append(modP(plan.commons.length
-    ? plan.commons.map((c) => `${c.chord} (${c.fromDeg} em ${plan.fromKey}, ${c.toDeg} em ${plan.toKey})`).join(" · ") + "."
-    : `${plan.fromKey} e ${plan.toKey} não têm nenhum acorde em comum.`));
-  extras.push(commonCard);
-  modExtra.replaceChildren(...extras);
-}
-// ---------- Tocar no tempo: metrônomo 4/4, pad e piano ----------
-// Toda a sequência é agendada de uma vez no relógio do áudio (o tempo fica preciso);
-// a tela só acompanha, olhando o relógio a cada quadro.
-const modBpm = $("modBpm"), modBpmRange = $("modBpmRange"), modBars = $("modBars");
-const practiceStatus = $("practiceStatus"), practiceText = $("practiceText");
-const practicePanel = practiceStatus.closest(".practice");
-const beatDots = [...practiceStatus.querySelectorAll(".beats i")];
-let practice = null;
-
-modBpmRange.addEventListener("input", () => { modBpm.value = modBpmRange.value; });
-modBpm.addEventListener("change", () => {
-  const v = Math.max(40, Math.min(160, Math.round(Number(modBpm.value) || 65)));
-  modBpm.value = v;
-  modBpmRange.value = v;
-});
-
-function stopPractice() {
-  if (!practice) return;
-  const { ctx, buses, raf, timer, card } = practice;
-  cancelAnimationFrame(raf);
-  clearTimeout(timer);
-  const now = ctx.currentTime;
-  for (const b of buses) { // silencia rápido (sem estalo) e desliga
-    b.gain.cancelScheduledValues(now);
-    b.gain.setValueAtTime(b.gain.value, now);
-    b.gain.linearRampToValueAtTime(0, now + 0.08);
-    setTimeout(() => b.disconnect(), 200);
-  }
-  card.classList.remove("practicing");
-  card.querySelectorAll(".chip.now").forEach((c) => c.classList.remove("now"));
-  practiceStatus.hidden = true;
-  practiceText.textContent = "";
-  practicePanel.classList.remove("playing");
-  beatDots.forEach((d) => d.className = "");
-  practice = null;
-}
-
-// Notas do pad de um tom: tônica grave, tônica, quinta e oitava (tônica entre C3 e B3)
-function keyPadMidis(key) {
-  const r = 48 + semitoneOf(key);
-  return [r - 12, r, r + 7, r + 12];
-}
-
-function startPractice(path, card, plan) {
-  stopPractice();
-  const ctx = audio();
-  if (!ctx) return;
-  const bpm = Number(modBpm.value) || 65;
-  const beat = 60 / bpm, bar = 4 * beat;
-  const passBars = Number(modBars.value) || 1;
-  // Compassos: 2 do fim da música atual, cada acorde de passagem, 2 do começo da próxima
-  const segments = path.steps.map((step, i) => ({
-    chord: step.chord, index: i,
-    bars: i === 0 || i === path.steps.length - 1 ? 2 : passBars,
-  }));
-  const totalBars = 1 + segments.reduce((s, x) => s + x.bars, 0); // + 1 de contagem
-
-  // Saídas próprias: a banda e o pad passam pela reverberação; o clique sai direto
-  const { input } = synthFor(ctx);
-  const music = ctx.createGain(); music.connect(input);
-  const clickBus = ctx.createGain(); clickBus.connect(ctx.destination);
-  const t0 = ctx.currentTime + 0.15;
-
-  for (let b = 0; b < totalBars; b++) {
-    for (let k = 0; k < 4; k++) {
-      if (b === 0 || $("modClick").checked) synthClick(ctx, t0 + b * bar + k * beat, k === 0, clickBus);
-    }
-  }
-  let t = t0 + bar; // depois da contagem
-  const bars = []; // cada compasso com o seu acorde (o baixo precisa saber o próximo)
-  for (const seg of segments) {
-    seg.start = t;
-    for (let b = 0; b < seg.bars; b++) bars.push({ chord: seg.chord, start: t + b * bar });
-    t += seg.bars * bar;
-  }
-  const end = t;
-
-  // Banda: teclado no 1 e no 3, guitarra em batida de balada e baixo levando ao próximo acorde
-  const keys = $("modKeys").checked, guitar = $("modGuitar").checked, bass = $("modBass").checked;
-  const gtr = guitar ? guitarBus(ctx, music) : null;
-  // Batida em colcheias: baixo no 1 e no 2, cima no 2e e no 3e, baixo no 4 e cima no 4e
-  const STRUM = [[0, true], [1, true], [1.5, false], [2.5, false], [3, true], [3.5, false]];
-  bars.forEach((b, i) => {
-    const next = bars[i + 1];
-    const last = !next;
-    if (keys) {
-      const voices = chordMidis(b.chord).slice(1); // sem o baixo: quem faz o baixo é o baixo
-      renderNotes(ctx, voices, { startAt: b.start, strum: 0.015, dur: last ? bar : 2 * beat, dest: music, gain: 0.45 });
-      if (!last) renderNotes(ctx, voices, { startAt: b.start + 2 * beat, strum: 0.015, dur: 2 * beat, dest: music, gain: 0.3 });
-    }
-    if (guitar) {
-      const shape = guitarMidis(b.chord);
-      if (last) strumGuitar(ctx, shape, b.start, b.start + bar + 1.5, true, gtr); // final: deixa soar
-      else STRUM.forEach(([at, down], k) => {
-        const until = k + 1 < STRUM.length ? STRUM[k + 1][0] : 4;
-        strumGuitar(ctx, shape, b.start + at * beat, b.start + until * beat, down, gtr);
-      });
-    }
-    if (bass) {
-      const root = bassRoot(b.chord);
-      if (last) synthBass(ctx, root, b.start, bar, music);
-      else {
-        synthBass(ctx, root, b.start, 2 * beat, music);
-        synthBass(ctx, root, b.start + 2 * beat, beat, music);
-        // 4º tempo: se o acorde muda, uma nota cromática "puxa" para a fundamental do próximo
-        const target = bassRoot(next.chord);
-        const approach = next.chord === b.chord ? root + 7 : target + (target > root ? -1 : 1);
-        synthBass(ctx, approach, b.start + 3 * beat, beat, music);
-      }
-    }
-  });
-  // Pad do tom: segura o tom da música atual (desde a contagem, como se ela estivesse tocando)
-  // e passa para o tom novo num fade longo (cerca de 1 compasso) centrado no começo da próxima
-  const newSongAt = segments[segments.length - 1].start;
-  const fade = Math.max(bar, 3);
-  if ($("modPad").checked) {
-    const fadeStart = newSongAt - fade / 2;
-    synthPad(ctx, keyPadMidis(plan.fromKey), t0, fadeStart - t0, music, { attack: 2, release: fade });
-    synthPad(ctx, keyPadMidis(plan.toKey), fadeStart, end - fadeStart, music, { attack: fade, release: 3 });
-  }
-
-  card.classList.add("practicing");
-  practiceStatus.hidden = false;
-  practiceText.textContent = "Contagem…";
-  practicePanel.classList.add("playing");
-  card.scrollIntoView({ behavior: "smooth", block: "center" });
-  const chips = [...card.querySelectorAll(".chip")];
-  practice = { ctx, buses: [music, clickBus], card, raf: 0, timer: 0 };
-
-  // A tela acompanha o relógio do áudio: tempo do compasso e acorde que está soando
-  const tick = () => {
-    if (!practice) return;
-    const now = ctx.currentTime;
-    const elapsed = now - t0;
-    if (elapsed >= 0) {
-      const beatIdx = Math.floor(elapsed / beat);
-      const barIdx = Math.floor(beatIdx / 4), inBar = beatIdx % 4;
-      beatDots.forEach((d, i) => d.className = i <= inBar ? (i === 0 ? "on accent" : "on") : "");
-      const seg = [...segments].reverse().find((s) => now >= s.start);
-      chips.forEach((c, i) => c.classList.toggle("now", !!seg && seg.index === i));
-      practiceText.textContent = barIdx === 0
-        ? "Contagem: " + (inBar + 1)
-        : seg ? "Compasso " + barIdx + " de " + (totalBars - 1) + " · " + seg.chord + (seg.index === 0 ? " (fim da música atual)" : seg.index === segments.length - 1 ? " (começo da próxima)" : " (transição)") : "";
-      if ($("modPad").checked) practiceText.textContent += " · pad em " + (now >= newSongAt + fade / 2 ? plan.toKey : now >= newSongAt - fade / 2 ? plan.fromKey + " → " + plan.toKey : plan.fromKey);
-    }
-    if (now < end + 0.3) practice.raf = requestAnimationFrame(tick);
-  };
-  practice.raf = requestAnimationFrame(tick);
-  practice.timer = setTimeout(stopPractice, (end - ctx.currentTime + 3.2) * 1000); // deixa o pad terminar de soar
-}
-$("practiceStop").addEventListener("click", stopPractice);
-
-modFrom.addEventListener("change", () => { fillChordSelect(modLast, modFrom.value, modLast.value || 1); renderMod(); });
-modTo.addEventListener("change", () => { fillChordSelect(modFirst, modTo.value, modFirst.value || 1); renderMod(); });
-modLast.addEventListener("change", renderMod);
-modFirst.addEventListener("change", renderMod);
-renderMod();
 
 // ---------- 6e. Treino ----------
 const trainKeySel = $("trainKey"), earSoundSel = $("earSound"), trainQuestionEl = $("trainQuestion");

@@ -19,12 +19,6 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 
 Aba de estudo com as 12 escalas maiores (escritas pela teoria: F# maior tem E#, Db maior tem Gb), o grau em cima de cada nota, a armadura e o relativo menor de cada tom. Campo maior ou menor (escala menor natural, com o relativo maior ao lado), mostrando as notas ou os acordes do campo harmônico (maior: 1, 4 e 5 maiores; 2, 3 e 6 menores; 7 diminuto. Menor: 1, 4 e 5 menores; 3, 6 e 7 maiores; 2 diminuto). Ordem pelas notas, ciclo das quintas, ciclo das quartas, terças maiores ou terças menores/sextas. Tocar num bloco toca a nota ou o acorde (som gerado no navegador).
 
-## Mudar de tom
-
-Para passar de uma música para a próxima, em outro tom, sem parar a banda. Você escolhe o tom e o acorde em que a música atual termina, e o tom e o acorde em que a próxima começa (ex.: música em C que termina no G; a próxima, em F, começa no Bb). O site liga esses dois acordes: pelo 2-5 do primeiro acorde (G → Cm7 → F7 → Bb), pelo dominante dele (G → F7 → Bb), pelo ciclo das quartas (G → C7 → F7 → Bb) ou passando pela tônica nova (G → C7 → F → Bb). Mostra também truques de ligação (o G vira Gm e você já está no campo de F), a nota de ligação e permite ouvir cada caminho.
-
-**Tocar no tempo:** em cada caminho, toca a transição como numa música de verdade: metrônomo em 4/4 (65 bpm por padrão, de 40 a 160), 1 compasso de contagem, 2 compassos do acorde final da música atual, a passagem (1 ou 2 compassos por acorde) e 2 compassos do primeiro acorde da próxima. O pad do tom fica de fundo no tom da música atual (tônica, quinta e oitava) e passa para o tom novo num fade longo (cerca de 1 compasso) em volta do começo da próxima música. Uma banda toca os acordes: guitarra (corda sintetizada, pestana e batida de balada em colcheias), baixo (fundamental no 1 e no 3 e, no 4º tempo, uma nota cromática que leva ao próximo acorde) e teclado no 1 e no 3. Dá para ligar e desligar metrônomo, pad, teclado, guitarra e baixo. A tela mostra o tempo do compasso e acende o acorde que está soando.
-
 ## Treino
 
 - Perguntas: grau de uma nota, nota de um grau e acordes do campo harmônico, com placar.
