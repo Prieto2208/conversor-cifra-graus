@@ -825,23 +825,26 @@ function transitionPlan(fromKey, toKey) {
   };
 }
 
-// Notas (MIDI) para tocar um acorde: baixo na 3ª oitava e a tríade acima
+// Notas (MIDI) para tocar um acorde, numa região natural (como um violão ou teclado de banda):
+// baixo entre Mi2 e Ré#3 e as notas do acorde fechadas entre Mi3 e Ré#4
 function chordMidis(name) {
   const m = name.match(/^([A-G])([#b]?)(m|°)?(7)?$/);
-  const root = 48 + noteToSemitone(m[1], m[2]);
+  const root = noteToSemitone(m[1], m[2]);
   const iv = m[3] === "m" ? [0, 3, 7] : m[3] === "°" ? [0, 3, 6] : [0, 4, 7];
   if (m[4]) iv.push(10); // sétima menor (A7, Em7)
-  return [root, ...iv.map((x) => root + 12 + x)];
+  const bass = 40 + ((root - 4 + 12) % 12);
+  const voices = iv.map((x) => 52 + ((root + x - 4 + 12) % 12)).sort((a, b) => a - b);
+  return [bass, ...voices];
 }
 function noteMidi(name, octave = 4) {
   return 12 * (octave + 1) + semitoneOf(name);
 }
 
 // Nota MIDI de um grau da escala; idx 0 = grau 1. Passa de 6 ou fica abaixo de 0 para
-// mudar de oitava (idx 7 = o 1 uma oitava acima, idx -1 = o 7 de baixo). Tônica perto do Dó central.
+// mudar de oitava (idx 7 = o 1 uma oitava acima, idx -1 = o 7 de baixo).
+// Tônica entre Sol3 e Fá#4: a região da voz, nem grave nem aguda demais.
 function degreeMidi(tonicName, idx) {
-  let tonic = 60 + semitoneOf(tonicName);
-  if (tonic > 66) tonic -= 12;
+  const tonic = 55 + ((semitoneOf(tonicName) - 7 + 12) % 12);
   const oct = Math.floor(idx / 7), k = idx - 7 * oct;
   return tonic + MAJOR_STEPS[k] + 12 * oct;
 }
@@ -884,7 +887,8 @@ function makeEarExercise(type, key, rnd = Math.random, avoid = -1) {
   if (type === "direction") {
     const a = randInt(7);
     const moves = [-4, -3, -2, -1, 0, 1, 2, 3, 4];
-    const d = moves[randInt(moves.length)];
+    let d;
+    do { d = moves[randInt(moves.length)]; } while (a + d < -3 || a + d > 7); // no máximo 1 oitava acima do 1
     const b = a + d;
     const answer = d > 0 ? "Subiu" : d < 0 ? "Desceu" : "Repetiu";
     const dist = Math.abs(d) + (Math.abs(d) === 1 ? " grau" : " graus");
@@ -905,7 +909,7 @@ function makeEarExercise(type, key, rnd = Math.random, avoid = -1) {
     const steps = [-2, -1, -1, -1, 1, 1, 1, 2];
     while (idxs.length < 3) {
       const next = idxs[idxs.length - 1] + steps[randInt(steps.length)];
-      if (next >= -2 && next <= 9) idxs.push(next);
+      if (next >= -3 && next <= 7) idxs.push(next); // entre o 5 de baixo e o 1 de cima
     }
     const shape = idxs.map((idx, i) => {
       const arrow = i === 0 ? "" : idx > idxs[i - 1] ? " ↑ " : " ↓ ";
@@ -1290,40 +1294,78 @@ function audio() {
   if (audioCtx.state !== "running") audioCtx.resume();
   return audioCtx;
 }
-// Toca notas MIDI com um timbre de piano elétrico simples (notas levemente "dedilhadas")
-function playMidis(midis, { when = 0, strum = 0.025, dur = 1.4 } = {}) {
-  const ctx = audio();
-  if (!ctx) return;
-  const t0 = ctx.currentTime + 0.03 + when;
-  const master = ctx.createGain();
-  master.gain.value = 0.25 / Math.sqrt(midis.length);
-  master.connect(ctx.destination);
-  midis.forEach((m, i) => {
-    const st = t0 + i * strum, freq = 440 * 2 ** ((m - 69) / 12);
-    const env = ctx.createGain();
-    env.gain.setValueAtTime(0.0001, st);
-    env.gain.exponentialRampToValueAtTime(1, st + 0.01);
-    env.gain.exponentialRampToValueAtTime(0.35, st + 0.25);
-    env.gain.exponentialRampToValueAtTime(0.0001, st + dur);
-    env.connect(master);
-    for (const [type, mult, amp] of [["triangle", 1, 1], ["sine", 2, 0.25]]) {
-      const osc = ctx.createOscillator();
-      osc.type = type;
-      osc.frequency.value = freq * mult;
-      const g = ctx.createGain();
-      g.gain.value = amp;
-      osc.connect(g);
-      g.connect(env);
-      osc.start(st);
-      osc.stop(st + dur + 0.05);
-    }
-  });
+// Timbre de piano elétrico: harmônicos que diminuem aos poucos (sem a camada aguda de antes),
+// um filtro que começa mais aberto no ataque e vai fechando (como uma corda que soa e abafa),
+// duas camadas levemente desafinadas para encorpar e um pouco de reverberação.
+const PIANO_HARMONICS = [0, 1, 0.5, 0.28, 0.16, 0.1, 0.06, 0.04, 0.025, 0.015];
+const synthCache = new WeakMap(); // por contexto de áudio: forma de onda e saída com reverb
+
+function synthFor(ctx) {
+  if (synthCache.has(ctx)) return synthCache.get(ctx);
+  const wave = ctx.createPeriodicWave(new Float32Array(PIANO_HARMONICS.length), Float32Array.from(PIANO_HARMONICS));
+  // Reverberação curta: ruído que decai (simula uma sala)
+  const len = Math.round(ctx.sampleRate * 1.6);
+  const impulse = ctx.createBuffer(2, len, ctx.sampleRate);
+  for (let ch = 0; ch < 2; ch++) {
+    const data = impulse.getChannelData(ch);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
+  }
+  const input = ctx.createGain();
+  const dry = ctx.createGain(); dry.gain.value = 0.85;
+  const wet = ctx.createGain(); wet.gain.value = 0.22;
+  const reverb = ctx.createConvolver(); reverb.buffer = impulse;
+  const limiter = ctx.createDynamicsCompressor(); // evita estourar quando várias notas somam
+  input.connect(dry); dry.connect(limiter);
+  input.connect(reverb); reverb.connect(wet); wet.connect(limiter);
+  limiter.connect(ctx.destination);
+  const synth = { wave, input };
+  synthCache.set(ctx, synth);
+  return synth;
 }
-// Nota do grau "k" (0-6) do tom, sempre subindo a partir da tônica (perto do Dó central)
+
+// Uma nota: duas camadas + filtro que fecha + envelope (ataque rápido, decaimento, soltura)
+function synthNote(ctx, midi, start, dur, level) {
+  const { wave, input } = synthFor(ctx);
+  const freq = 440 * 2 ** ((midi - 69) / 12);
+  const filter = ctx.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.Q.value = 0.5;
+  filter.frequency.setValueAtTime(Math.min(5000, freq * 7), start);
+  filter.frequency.exponentialRampToValueAtTime(Math.max(500, freq * 2.2), start + 0.9);
+  const env = ctx.createGain();
+  env.gain.setValueAtTime(0.0001, start);
+  env.gain.exponentialRampToValueAtTime(level, start + 0.006);
+  env.gain.exponentialRampToValueAtTime(level * 0.3, start + 0.9);
+  env.gain.setValueAtTime(level * 0.3 * Math.max(0.05, 1 - (dur - 0.9) / 3), start + Math.max(0.91, dur));
+  env.gain.exponentialRampToValueAtTime(0.0001, start + dur + 0.4);
+  filter.connect(env);
+  env.connect(input);
+  for (const [detune, amp] of [[0, 1], [4, 0.5]]) {
+    const osc = ctx.createOscillator();
+    osc.setPeriodicWave(wave);
+    osc.frequency.value = freq;
+    osc.detune.value = detune;
+    const g = ctx.createGain();
+    g.gain.value = amp;
+    osc.connect(g);
+    g.connect(filter);
+    osc.start(start);
+    osc.stop(start + dur + 0.5);
+  }
+}
+
+// Toca notas MIDI (acordes levemente "dedilhados", do grave para o agudo)
+function renderNotes(ctx, midis, { when = 0, strum = 0.025, dur = 1.4, startAt = ctx.currentTime + 0.03 } = {}) {
+  const level = 0.32 / Math.sqrt(midis.length);
+  midis.forEach((m, i) => synthNote(ctx, m, startAt + when + i * strum, dur, i === 0 && midis.length > 1 ? level * 1.2 : level));
+}
+function playMidis(midis, opts = {}) {
+  const ctx = audio();
+  if (ctx) renderNotes(ctx, midis, opts);
+}
+// Nota do grau "k" (0-6) do tom, subindo a partir da tônica (mesma região do treino)
 function scaleNoteMidi(key, k) {
-  let tonic = 60 + semitoneOf(key);
-  if (tonic > 66) tonic -= 12;
-  return tonic + MAJOR_STEPS[k];
+  return degreeMidi(key, k);
 }
 
 // ---------- 6d. Mapa de graus ----------
