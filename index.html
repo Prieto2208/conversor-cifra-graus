@@ -42,6 +42,7 @@
     --deg5: #F87171; --deg6: #60A5FA; --deg7: #A1A1AA;
   }
   *, *::before, *::after { box-sizing: inherit; }
+  [hidden] { display: none !important; } /* "escondido" vale mesmo em elementos com display: flex */
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
