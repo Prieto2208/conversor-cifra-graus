@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <meta name="theme-color" content="#070B14">
+<link rel="icon" id="favicon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cdefs%3E%3ClinearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' y1='0' x2='40' y2='40'%3E%3Cstop offset='0' stop-color='%2322D3EE'/%3E%3Cstop offset='1' stop-color='%23A78BFA'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='1' y='1' width='38' height='38' rx='10' fill='%230A1322' stroke='url(%23g)' stroke-width='2'/%3E%3Cg stroke='url(%23g)' stroke-width='3.4' stroke-linecap='round'%3E%3Cline x1='10' y1='17' x2='10' y2='23'/%3E%3Cline x1='15' y1='12' x2='15' y2='28'/%3E%3Cline x1='20' y1='15' x2='20' y2='25'/%3E%3Cline x1='25' y1='9' x2='25' y2='31'/%3E%3Cline x1='30' y1='16' x2='30' y2='24'/%3E%3C/g%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
@@ -2283,6 +2284,49 @@ if (!sb) {
   $("loginSubmit").disabled = true;
 }
 
+// Ícone da aba com as ondas sonoras do logo se mexendo.
+// O navegador não anima o ícone sozinho: ele é redesenhado num canvas ~10 vezes por segundo.
+(() => {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return; // fica o ícone parado
+  const link = document.getElementById("favicon");
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext("2d");
+  if (!link || !ctx) return;
+  const S = 64 / 40; // o desenho do logo usa uma grade de 40x40
+  const BARS = [[10, 6], [15, 16], [20, 10], [25, 22], [30, 8]]; // [posição x, altura] de cada barra
+  const grad = ctx.createLinearGradient(0, 0, 64, 64);
+  grad.addColorStop(0, "#22D3EE");
+  grad.addColorStop(1, "#A78BFA");
+
+  function draw(t) {
+    ctx.clearRect(0, 0, 64, 64);
+    ctx.beginPath();
+    ctx.roundRect(1.6, 1.6, 60.8, 60.8, 16);
+    ctx.fillStyle = "#0A1322";
+    ctx.fill();
+    ctx.lineWidth = 3.2;
+    ctx.strokeStyle = grad;
+    ctx.stroke();
+    ctx.lineCap = "round";
+    ctx.lineWidth = 5.4;
+    BARS.forEach(([x, h], i) => {
+      // Mesmo ritmo do logo: ciclo de 1,6 s, cada barra 0,3 s defasada, encolhendo até 55%
+      const phase = ((t / 1600) + i * 0.3 / 1.6) * 2 * Math.PI;
+      const scale = 0.775 + 0.225 * Math.cos(phase);
+      const half = (h * scale * S) / 2;
+      ctx.beginPath();
+      ctx.moveTo(x * S, 20 * S - half);
+      ctx.lineTo(x * S, 20 * S + half);
+      ctx.stroke();
+    });
+    link.type = "image/png";
+    link.href = canvas.toDataURL("image/png");
+  }
+  if (!ctx.roundRect) return; // navegador antigo: mantém o ícone SVG parado
+  setInterval(() => draw(performance.now()), 100);
+})();
+
 if (sb) {
   // Se o banco não responder (ex.: projeto pausado no Supabase), mostra a tela de login
   // com um aviso em vez de deixar a página em branco.
@@ -2322,7 +2366,21 @@ if (sb) {
     }
     $("loginPassword").value = "";
   });
-  $("logout").addEventListener("click", () => sb.auth.signOut());
+  // Sair sempre volta para o login: se o servidor recusar ou não responder
+  // (sessão vencida, sem internet), apaga a sessão só neste navegador.
+  $("logout").addEventListener("click", async () => {
+    const btn = $("logout");
+    btn.disabled = true;
+    try {
+      const { error } = await sb.auth.signOut();
+      if (error) throw error;
+    } catch (err) {
+      console.error(err);
+      try { await sb.auth.signOut({ scope: "local" }); } catch (e) { console.error(e); }
+    }
+    btn.disabled = false;
+    setSession(null);
+  });
 
   $("save").addEventListener("click", saveSong);
   $("newSong").addEventListener("click", newSong);
