@@ -5,41 +5,40 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Conversor de cifra para graus</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<meta name="theme-color" content="#070B14">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
+  /* Tema "tecnológico": escuro, com vidro fosco, grade ao fundo e brilho ciano/violeta */
   :root {
-    --bg: #EEF1F5;
-    --surface: #FFFFFF;
-    --ink: #1E2433;
-    --muted: #5B6478;
-    --line: #D3D9E3;
-    --accent: #3F51C7;
-    --accent-ink: #FFFFFF;
-    --chord: #B04A2F;
+    color-scheme: dark;
+    --bg: #070B14;
+    --surface: #0E1524;          /* painéis e campos */
+    --surface-2: #121B2E;        /* realce dentro de painéis */
+    --glass: rgba(16, 24, 40, 0.68);
+    --ink: #E6EDF7;
+    --muted: #8593AB;
+    --line: rgba(148, 163, 184, 0.16);
+    --line-strong: rgba(148, 163, 184, 0.3);
+    --accent: #22D3EE;           /* ciano */
+    --accent-2: #A78BFA;         /* violeta */
+    --accent-ink: #031119;
+    --glow: rgba(34, 211, 238, 0.35);
+    --chord: #FFB547;            /* graus em âmbar neon */
+    --danger: #FB7185;
+    --ok: #34D399;
+    --grad: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%);
+    --font: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
     /* Uma cor por grau no Mapa de graus */
-    --deg1: #3F51C7; --deg2: #0E7C72; --deg3: #7048E8; --deg4: #C2410C;
-    --deg5: #B91C1C; --deg6: #0369A1; --deg7: #6B7280;
+    --deg1: #22D3EE; --deg2: #34D399; --deg3: #A78BFA; --deg4: #FB923C;
+    --deg5: #FB7185; --deg6: #60A5FA; --deg7: #94A3B8;
     box-sizing: border-box;
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      color-scheme: dark;
-      --bg: #151923; --surface: #1E2330; --ink: #E6E9F0; --muted: #9AA3B5;
-      --line: #313849; --accent: #8E9BFF; --accent-ink: #12162A; --chord: #F0956F;
-      --deg1: #8E9BFF; --deg2: #4FD1C5; --deg3: #B197FC; --deg4: #FB923C;
-      --deg5: #F87171; --deg6: #60A5FA; --deg7: #A1A1AA;
-    }
-  }
-  :root[data-theme="dark"] {
-    color-scheme: dark;
-    --bg: #151923; --surface: #1E2330; --ink: #E6E9F0; --muted: #9AA3B5;
-    --line: #313849; --accent: #8E9BFF; --accent-ink: #12162A; --chord: #F0956F;
-    --deg1: #8E9BFF; --deg2: #4FD1C5; --deg3: #B197FC; --deg4: #FB923C;
-    --deg5: #F87171; --deg6: #60A5FA; --deg7: #A1A1AA;
   }
   *, *::before, *::after { box-sizing: inherit; }
   [hidden] { display: none !important; } /* "escondido" vale mesmo em elementos com display: flex */
@@ -173,6 +172,23 @@
   button.ghost.danger { background: transparent; color: var(--chord); }
   button:disabled { opacity: 0.6; cursor: default; }
 
+  /* PDF com várias músicas: escolher as cifras salvas e a ordem */
+  #multiDialog { width: min(760px, calc(100% - 32px)); }
+  .multi-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
+  @media (max-width: 600px) { .multi-cols { grid-template-columns: 1fr; } }
+  .multi-cols h3 { font-size: 0.9rem; margin: 0 0 8px; }
+  .multi-cols h3 span { color: var(--muted); font-weight: 400; }
+  .multi-list { list-style: none; margin: 0; padding: 0; max-height: 38vh; overflow: auto; border-top: 1px solid var(--line); }
+  .multi-list li { display: flex; align-items: center; gap: 6px; padding: 6px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+  .multi-list label.pick { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; margin: 0; color: var(--ink); font-weight: 400; font-size: 0.95rem; cursor: pointer; }
+  .multi-list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .multi-order { list-style: none; counter-reset: ord; }
+  .multi-order li:not(.multi-empty)::before { counter-increment: ord; content: counter(ord) "."; color: var(--muted); min-width: 1.6em; font-variant-numeric: tabular-nums; }
+  .multi-order button { padding: 4px 8px; min-width: 32px; }
+  .multi-empty { color: var(--muted); font-size: 0.9rem; }
+  .multi-error { color: var(--chord); font-size: 0.85rem; min-height: 1.2em; margin: 4px 0 8px; }
+  #multiDialog .check { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--ink); }
+
   /* Abas */
   .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
   .tabs button {
@@ -245,6 +261,187 @@
   .train-feedback.bad { color: var(--chord); }
   .train-card > .btns { justify-content: center; }
 
+  /* ================= Tema tecnológico (camada visual) ================= */
+  body {
+    font-family: var(--font); letter-spacing: -0.005em;
+    background:
+      radial-gradient(900px 500px at 12% -10%, rgba(34, 211, 238, 0.14), transparent 60%),
+      radial-gradient(800px 500px at 100% 0%, rgba(167, 139, 250, 0.14), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  /* Grade sutil ao fundo, que some nas bordas */
+  body::before {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+    background-image:
+      linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 30%, transparent 75%);
+  }
+  ::selection { background: rgba(34, 211, 238, 0.3); }
+
+  h1, h2, h3, .login-card h1, dialog h2 { font-family: var(--font-display); letter-spacing: -0.02em; }
+  h1 {
+    font-size: 2rem; font-weight: 700;
+    background: linear-gradient(90deg, #F1F5FF 0%, #BFEFFF 45%, var(--accent-2) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); padding: 4px 10px; border-radius: 999px;
+    border: 1px solid rgba(34, 211, 238, 0.35); background: rgba(34, 211, 238, 0.08);
+  }
+  .eyebrow::before {
+    content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+    box-shadow: 0 0 10px var(--accent); animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) { .eyebrow::before { animation: none; } }
+
+  /* Painéis com vidro fosco */
+  .controls, .songbar, .map-controls, .train-card, .login-card, dialog {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.7);
+  }
+  dialog { background: rgba(12, 18, 32, 0.92); border-color: var(--line-strong); box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(34, 211, 238, 0.08); }
+  dialog::backdrop { background: rgba(3, 6, 12, 0.7); -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); }
+  .login-card { border-color: var(--line-strong); padding: 28px; position: relative; }
+  .login-card::before {
+    content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(135deg, rgba(34, 211, 238, 0.6), transparent 40%, transparent 60%, rgba(167, 139, 250, 0.6));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor; mask-composite: exclude;
+  }
+
+  /* Rótulos em estilo "terminal" */
+  .field label, .field-label, dialog label, .login-card label {
+    font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted);
+  }
+  /* ...menos nos itens clicáveis da janela de várias músicas */
+  .multi-list label.pick, #multiDialog label.check {
+    font-family: var(--font); font-size: 0.95rem; font-weight: 400; text-transform: none; letter-spacing: normal; color: var(--ink);
+  }
+  .ref { font-size: 0.9rem; color: var(--muted); }
+  .ref strong { color: var(--accent); font-weight: 600; }
+
+  /* Campos */
+  select, .songbar input, dialog input[type="text"], dialog input[type="search"], .login-card input {
+    background: rgba(5, 9, 18, 0.6); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--ink);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  select { padding: 8px 12px; }
+  select:hover, .songbar input:hover, dialog input:hover { border-color: rgba(34, 211, 238, 0.45); }
+  select:focus, .songbar input:focus, dialog input:focus, .login-card input:focus, textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.18);
+  }
+  input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  /* Botões */
+  button {
+    border-radius: 8px; padding: 7px 14px; font-weight: 600; letter-spacing: 0;
+    border: 1px solid transparent; background: var(--grad); color: var(--accent-ink);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset, 0 6px 20px -8px var(--glow);
+    transition: transform 0.12s, box-shadow 0.15s, background-color 0.15s, border-color 0.15s, color 0.15s;
+  }
+  button:hover:not(:disabled) { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.14) inset, 0 8px 28px -6px var(--glow); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button.ghost {
+    background: rgba(148, 163, 184, 0.06); color: var(--ink); border-color: var(--line-strong); box-shadow: none;
+  }
+  button.ghost:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); background: rgba(34, 211, 238, 0.08); box-shadow: 0 0 18px -6px var(--glow); }
+  button[aria-pressed="true"] { background: var(--grad); color: var(--accent-ink); border-color: transparent; }
+  button.danger { background: var(--danger); border-color: var(--danger); color: #1A0509; box-shadow: none; }
+  button.ghost.danger { background: transparent; color: var(--danger); border-color: rgba(251, 113, 133, 0.4); }
+  button.ghost.danger:hover:not(:disabled) { background: rgba(251, 113, 133, 0.1); color: var(--danger); border-color: var(--danger); box-shadow: none; }
+
+  /* Abas em formato de pílula */
+  .tabs {
+    display: inline-flex; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 12px;
+    background: rgba(5, 9, 18, 0.55); margin-bottom: 22px;
+  }
+  .tabs button {
+    border: 0; border-radius: 9px; padding: 8px 16px; margin: 0; color: var(--muted);
+    background: transparent; box-shadow: none; font-weight: 500;
+  }
+  .tabs button:hover:not(:disabled) { color: var(--ink); background: rgba(148, 163, 184, 0.08); box-shadow: none; transform: none; }
+  .tabs button[aria-selected="true"] {
+    color: var(--ink); background: linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(167, 139, 250, 0.2));
+    box-shadow: 0 0 0 1px rgba(34, 211, 238, 0.35) inset, 0 0 20px -6px var(--glow);
+  }
+
+  /* Editores de cifra com cara de IDE */
+  .pane-head h2 {
+    font-family: var(--font-mono); font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--muted); display: flex; align-items: center; gap: 8px;
+  }
+  .pane-head h2::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--muted); }
+  .pane:not(.pane-original) .pane-head h2::before { background: var(--chord); box-shadow: 0 0 10px var(--chord); }
+  .pane-original .pane-head h2::before { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+  textarea, .output {
+    font-family: var(--font-mono); font-size: 13.5px; line-height: 1.65;
+    background: rgba(4, 8, 16, 0.75); border: 1px solid var(--line-strong); border-radius: 12px;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 20px 40px -28px rgba(0, 0, 0, 0.9);
+    padding: 16px 18px;
+  }
+  .output .ch { color: var(--chord); font-weight: 700; text-shadow: 0 0 12px rgba(255, 181, 71, 0.35); }
+  #gradesEdit { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.15); }
+  .manual-note { background: rgba(255, 181, 71, 0.08); border: 1px solid rgba(255, 181, 71, 0.35); border-radius: 10px; color: #F5D8A8; }
+  .status { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.02em; }
+  .songbar .status.dirty { color: var(--chord); }
+  .login-card .error, .multi-error { color: var(--danger); }
+
+  /* Listas das janelas */
+  .lib-list, .multi-list { border-top-color: var(--line); }
+  .lib-list li, .multi-list li { border-bottom-color: var(--line); }
+  .lib-open { border-radius: 8px; box-shadow: none; color: var(--ink); background: transparent; }
+  .lib-open:hover:not(:disabled) { background: rgba(34, 211, 238, 0.07); box-shadow: none; transform: none; }
+  .lib-open span { font-family: var(--font-mono); font-size: 0.72rem; }
+  .multi-order li::before { font-family: var(--font-mono); color: var(--accent); }
+  .multi-order button { padding: 4px 8px; }
+
+  /* Mapa de graus: blocos com brilho na cor do grau */
+  .segmented { border: 1px solid var(--line-strong); border-radius: 10px; padding: 3px; gap: 3px; background: rgba(5, 9, 18, 0.55); }
+  .segmented button { border-radius: 7px; background: transparent; color: var(--muted); box-shadow: none; font-weight: 500; }
+  .segmented button:hover:not(:disabled) { color: var(--ink); transform: none; box-shadow: none; }
+  .segmented button[aria-pressed="true"] { background: var(--grad); color: var(--accent-ink); font-weight: 600; }
+  .map td {
+    background: rgba(8, 13, 24, 0.8); border: 1px solid var(--line); border-top: 3px solid var(--deg);
+    border-radius: 10px; transition: transform 0.08s, box-shadow 0.15s, border-color 0.15s;
+  }
+  .map td:hover { box-shadow: 0 0 18px -6px var(--deg); border-color: var(--deg); }
+  .map td .note { font-family: var(--font-mono); }
+  .map td .deg { font-family: var(--font-mono); }
+  .map tr.focus td { background: rgba(34, 211, 238, 0.06); }
+  .map td:active, .map td.playing { background: rgba(255, 255, 255, 0.05); box-shadow: 0 0 24px -4px var(--deg); }
+  .map th { font-family: var(--font-mono); }
+
+  /* Treino */
+  .train-question b, .score strong { color: var(--accent); }
+  .train-options button {
+    background: rgba(5, 9, 18, 0.6); color: var(--ink); border: 1px solid var(--line-strong); box-shadow: none;
+    font-family: var(--font-mono);
+  }
+  .train-options button:hover:not(:disabled) { border-color: var(--accent); box-shadow: 0 0 18px -6px var(--glow); }
+  .train-options button.right { background: var(--ok); border-color: var(--ok); color: #03160E; box-shadow: 0 0 22px -4px rgba(52, 211, 153, 0.6); }
+  .train-options button.wrong { background: var(--danger); border-color: var(--danger); color: #1A0509; }
+  .train-options button small { font-family: var(--font); }
+  .melody-slots { font-family: var(--font-mono); }
+  .melody-slots span.filled { color: var(--ok); border-color: var(--ok); }
+  .train-feedback.ok { color: var(--ok); }
+  .train-feedback.bad { color: var(--danger); }
+
+  /* Barra de rolagem discreta */
+  * { scrollbar-width: thin; scrollbar-color: rgba(148, 163, 184, 0.3) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 10px; border: 2px solid transparent; background-clip: padding-box; }
+
   /* Celular: botões maiores e mais espaçados */
   @media (max-width: 600px) {
     main { padding: 20px 16px 40px; }
@@ -259,7 +456,8 @@
     .pane-head .btns { flex-wrap: wrap; gap: 8px; }
     .pane-head .btns button { padding: 8px 12px; }
     .lib-list li { gap: 10px; }
-    .tabs { overflow-x: auto; overflow-y: hidden; gap: 0; }
+    .tabs { display: flex; width: 100%; overflow-x: auto; overflow-y: hidden; gap: 2px; }
+    h1 { font-size: 1.6rem; }
     .tabs button { margin-bottom: 0; }
     .tabs button { flex: 1 1 auto; padding: 10px 6px; font-size: 0.8rem; white-space: nowrap; }
     .map-controls { padding: 12px; gap: 12px; }
@@ -284,6 +482,7 @@
 <body>
 <section class="login-screen" aria-labelledby="loginTitle">
   <form class="login-card" id="loginForm">
+    <span class="eyebrow">harmonia em graus</span>
     <h1 id="loginTitle">Conversor de cifra para graus</h1>
     <p class="lead">Entre para usar o conversor e as cifras salvas.</p>
     <label for="loginEmail">Usuário</label>
@@ -298,11 +497,13 @@
 <main>
   <div class="topbar">
     <div>
+      <span class="eyebrow">cifra → graus</span>
       <h1>Conversor de cifra para graus</h1>
       <p class="lead" id="leadText">Cole a cifra à esquerda. As linhas de acordes são convertidas em graus e a letra fica como está, na mesma posição.</p>
     </div>
     <div class="account">
       <button id="libOpen">Cifras salvas</button>
+      <button class="ghost" id="multiOpen">PDF com várias</button>
       <button class="ghost" id="logout">Sair</button>
     </div>
   </div>
@@ -467,6 +668,34 @@
   <div class="btns">
     <button type="button" class="ghost" id="libClose">Fechar</button>
   </div>
+</dialog>
+
+<dialog id="multiDialog" aria-labelledby="multiTitle">
+  <form id="multiForm">
+    <h2 id="multiTitle">PDF com várias músicas</h2>
+    <label for="multiName">Nome do PDF</label>
+    <input type="text" id="multiName" placeholder="Ex.: Repertório de domingo" autocomplete="off" maxlength="100">
+    <p class="hint">Arquivo: <strong id="multiPreview">repertorio.pdf</strong></p>
+
+    <div class="multi-cols">
+      <div>
+        <h3>Cifras salvas</h3>
+        <input type="search" id="multiSearch" placeholder="Buscar pelo nome" aria-label="Buscar cifra salva">
+        <ul class="multi-list" id="multiAvail"></ul>
+      </div>
+      <div>
+        <h3>Ordem no PDF <span id="multiCount"></span></h3>
+        <ol class="multi-list multi-order" id="multiOrder"></ol>
+      </div>
+    </div>
+
+    <label class="check"><input type="checkbox" id="multiNewPage" checked> Cada música começa numa página nova</label>
+    <p class="multi-error" id="multiError" role="status"></p>
+    <div class="btns">
+      <button type="button" class="ghost" id="multiCancel">Cancelar</button>
+      <button type="submit" id="multiSubmit">Gerar PDF</button>
+    </div>
+  </form>
 </dialog>
 
 <script>
@@ -901,15 +1130,15 @@ Os graus ficam sobre as mesmas sílabas
 Dm7      E7(9)      Am
 Cole aqui a sua cifra`;
 
-function getSettings() {
-  const rootName = rootSel.value;
+// Sem argumentos usa o tom da tela; com argumentos serve para uma cifra salva (PDF com várias músicas)
+function getSettings(rootName = rootSel.value, mode = modeSel.value, relative = relativeChk.checked) {
   let tonic = noteToSemitone(rootName[0], rootName.slice(1));
   let degrees = MAJOR_DEGREES;
   let field = MAJOR_FIELD;
   let refName = rootName + " maior";
 
-  if (modeSel.value === "minor") {
-    if (relativeChk.checked) {
+  if (mode === "minor") {
+    if (relative) {
       tonic = (tonic + 3) % 12; // relativo maior fica 3 semitons acima
       refName = ROOT_OPTIONS[tonic] + " maior (relativo de " + rootName + "m)";
     } else {
@@ -1050,7 +1279,9 @@ $("copy").addEventListener("click", async () => {
 // ---------- 6. Exportar em PDF e compartilhar ----------
 // Fonte monoespaçada (Courier) para os graus continuarem alinhados com as sílabas.
 const PT_TO_MM = 0.3528;
-function buildPdf(title) {
+// songs = [{ title, lines }] na ordem em que entram no PDF. Uma música só = PDF de sempre.
+// newPage: cada música começa numa página nova (senão, vêm uma embaixo da outra).
+function buildPdf(title, songs = [{ title, lines: lastLines }], newPage = true) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   // Título interno do PDF (com acentos): é o que os visualizadores mostram no topo
@@ -1058,32 +1289,54 @@ function buildPdf(title) {
   const margin = 15, pageH = 297, usable = 210 - 2 * margin;
   let y = margin;
 
-  if (title) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.setTextColor(30, 36, 51);
-    doc.text(title, margin, y + 5, { maxWidth: usable });
-    y += 13;
-  }
+  songs.forEach((song, s) => {
+    if (s > 0) {
+      if (newPage) { doc.addPage(); y = margin; }
+      else y += 8; // espaço entre uma música e outra
+    }
+    if (song.title) {
+      // Título não fica sozinho no pé da página
+      if (y + 13 + 12 > pageH - margin) { doc.addPage(); y = margin; }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.setTextColor(30, 36, 51);
+      const titleLines = doc.splitTextToSize(song.title, usable);
+      doc.text(titleLines, margin, y + 5);
+      y += 13 + (titleLines.length - 1) * 6.5;
+    }
 
-  // Diminui a fonte (até 6,5pt) se a linha mais longa não couber na largura da página
-  const lines = lastLines.map((l) => ({ ...l, text: l.text.replace(/\t/g, "    ") }));
-  const longest = Math.max(1, ...lines.map((l) => l.text.length));
-  const size = Math.max(6.5, Math.min(10.5, usable / (longest * 0.6 * PT_TO_MM)));
-  const lineH = size * PT_TO_MM * 1.35;
-  doc.setFontSize(size);
+    // Diminui a fonte (até 6,5pt) se a linha mais longa não couber na largura da página
+    const lines = song.lines.map((l) => ({ ...l, text: l.text.replace(/\t/g, "    ") }));
+    const longest = Math.max(1, ...lines.map((l) => l.text.length));
+    const size = Math.max(6.5, Math.min(10.5, usable / (longest * 0.6 * PT_TO_MM)));
+    const lineH = size * PT_TO_MM * 1.35;
+    doc.setFontSize(size);
 
-  lines.forEach((line, i) => {
-    // Linha de graus nunca fica no fim da página separada da letra de baixo
-    const needed = line.isChordLine && i + 1 < lines.length ? 2 * lineH : lineH;
-    if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
-    doc.setFont("courier", line.isChordLine ? "bold" : "normal");
-    if (line.isChordLine) doc.setTextColor(176, 74, 47);
-    else doc.setTextColor(30, 36, 51);
-    if (line.text) doc.text(line.text, margin, y + lineH * 0.8);
-    y += lineH;
+    lines.forEach((line, i) => {
+      // Linha de graus nunca fica no fim da página separada da letra de baixo
+      const needed = line.isChordLine && i + 1 < lines.length ? 2 * lineH : lineH;
+      if (y + needed > pageH - margin) { doc.addPage(); y = margin; }
+      doc.setFont("courier", line.isChordLine ? "bold" : "normal");
+      if (line.isChordLine) doc.setTextColor(176, 74, 47);
+      else doc.setTextColor(30, 36, 51);
+      if (line.text) doc.text(line.text, margin, y + lineH * 0.8);
+      y += lineH;
+    });
   });
   return doc.output("blob");
+}
+
+// Graus de uma cifra salva, do mesmo jeito que aparecem na tela ao abri-la
+// (respeita os graus editados à mão).
+function songLines(record) {
+  if (record.graus != null) {
+    return record.graus.split("\n").map((t) => ({ text: t, isChordLine: isDegreeLine(t) }));
+  }
+  const settings = getSettings(record.tom, record.modo, record.relativo);
+  return record.cifra.split("\n").map((line) => {
+    const r = convertLine(line, settings);
+    return { text: r.text, isChordLine: r.isChordLine };
+  });
 }
 
 // No celular abre o menu de compartilhar do aparelho (WhatsApp, e-mail...).
@@ -1616,6 +1869,9 @@ function setSession(session) {
     detectKey();
     render();
     libDialog.close();
+    multiDialog.close();
+    multiPicked = [];
+    multiSongs = [];
     setSaveStatus("");
   }
   updateDirty();
@@ -1717,6 +1973,147 @@ async function openLibrary() {
   renderLibrary();
   libSearch.focus();
 }
+
+// ---------- 7b. PDF com várias músicas ----------
+// As cifras vêm completas ao abrir a janela: assim o PDF é gerado logo no clique
+// (no celular o compartilhar só funciona se vier direto do toque, sem esperar o banco).
+const multiDialog = $("multiDialog"), multiAvail = $("multiAvail"), multiOrder = $("multiOrder");
+const multiSearch = $("multiSearch"), multiName = $("multiName"), multiError = $("multiError");
+let multiSongs = [];   // cifras salvas completas
+let multiPicked = [];  // ids na ordem em que entram no PDF
+
+function renderMulti() {
+  const byId = new Map(multiSongs.map((s) => [s.id, s]));
+  const term = multiSearch.value.trim().toLowerCase();
+
+  multiAvail.replaceChildren();
+  const items = multiSongs.filter((s) => s.titulo.toLowerCase().includes(term));
+  if (!items.length) {
+    const li = document.createElement("li");
+    li.className = "multi-empty";
+    li.textContent = multiSongs.length ? "Nenhuma música com esse nome." : "Nenhuma cifra salva ainda.";
+    multiAvail.append(li);
+  }
+  for (const s of items) {
+    const li = document.createElement("li");
+    const label = document.createElement("label");
+    label.className = "pick";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = multiPicked.includes(s.id);
+    chk.addEventListener("change", () => {
+      if (chk.checked) multiPicked.push(s.id); // entra no fim da ordem
+      else multiPicked = multiPicked.filter((id) => id !== s.id);
+      multiError.textContent = "";
+      renderMulti();
+    });
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = s.titulo;
+    label.append(chk, name);
+    li.append(label);
+    multiAvail.append(li);
+  }
+
+  multiOrder.replaceChildren();
+  $("multiCount").textContent = multiPicked.length ? "(" + multiPicked.length + ")" : "";
+  if (!multiPicked.length) {
+    const li = document.createElement("li");
+    li.className = "multi-empty";
+    li.textContent = "Marque as músicas ao lado. Elas entram nesta ordem e dá para mudar com as setas.";
+    multiOrder.append(li);
+  }
+  multiPicked.forEach((id, i) => {
+    const s = byId.get(id);
+    const li = document.createElement("li");
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = s.titulo;
+    const mk = (text, label, disabled, fn) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ghost";
+      b.textContent = text;
+      b.title = label;
+      b.setAttribute("aria-label", label + ": " + s.titulo);
+      b.disabled = disabled;
+      b.addEventListener("click", fn);
+      return b;
+    };
+    const move = (to) => () => {
+      multiPicked.splice(i, 1);
+      multiPicked.splice(to, 0, id);
+      renderMulti();
+      // Mantém o foco no mesmo botão para poder subir/descer várias vezes seguidas
+      const btn = multiOrder.children[to]?.querySelector(to < i ? "[data-up]" : "[data-down]");
+      if (btn && !btn.disabled) btn.focus();
+    };
+    const up = mk("↑", "Subir", i === 0, move(i - 1));
+    up.dataset.up = "1";
+    const down = mk("↓", "Descer", i === multiPicked.length - 1, move(i + 1));
+    down.dataset.down = "1";
+    const rm = mk("✕", "Tirar do PDF", false, () => {
+      multiPicked = multiPicked.filter((x) => x !== id);
+      renderMulti();
+    });
+    li.append(name, up, down, rm);
+    multiOrder.append(li);
+  });
+}
+
+async function openMulti() {
+  if (!window.jspdf) { statusEl.textContent = "Não foi possível carregar o gerador de PDF. Verifique sua conexão."; return; }
+  multiSearch.value = "";
+  multiError.textContent = "";
+  multiPreviewUpdate();
+  multiAvail.replaceChildren(Object.assign(document.createElement("li"), { className: "multi-empty", textContent: "Carregando..." }));
+  multiOrder.replaceChildren();
+  multiDialog.showModal();
+  const { data, error } = await sb.from("cifras").select("id, titulo, tom, modo, relativo, cifra, graus").order("titulo");
+  if (error) {
+    console.error(error);
+    multiAvail.replaceChildren(Object.assign(document.createElement("li"), { className: "multi-empty", textContent: "Não foi possível carregar as cifras." }));
+    return;
+  }
+  multiSongs = data;
+  const ids = new Set(data.map((s) => s.id));
+  multiPicked = multiPicked.filter((id) => ids.has(id)); // mantém a seleção anterior, sem as excluídas
+  renderMulti();
+  multiName.focus();
+}
+
+function multiPreviewUpdate() {
+  $("multiPreview").textContent = safeFileName(multiName.value.trim() || "repertorio");
+}
+
+$("multiOpen").addEventListener("click", openMulti);
+$("multiCancel").addEventListener("click", () => multiDialog.close());
+multiSearch.addEventListener("input", renderMulti);
+multiName.addEventListener("input", multiPreviewUpdate);
+
+$("multiForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (!multiPicked.length) { multiError.textContent = "Escolha pelo menos uma música."; return; }
+  const byId = new Map(multiSongs.map((s) => [s.id, s]));
+  const title = multiName.value.replace(/\s+/g, " ").trim();
+  const filename = safeFileName(title || "repertorio");
+  const songs = multiPicked.map((id) => {
+    const s = byId.get(id);
+    return { title: s.titulo, lines: songLines(s) };
+  });
+  multiDialog.close();
+  try {
+    const blob = buildPdf(title || "Repertório", songs, $("multiNewPage").checked); // síncrono, logo após o clique
+    const result = await sharePdf(blob, filename, title || "Repertório");
+    const n = songs.length + (songs.length === 1 ? " música" : " músicas");
+    statusEl.textContent = result === "shared" ? "PDF compartilhado (" + n + "): " + filename
+      : result === "cancelled" ? "Compartilhamento cancelado."
+      : "PDF baixado (" + n + "): " + filename;
+  } catch (err) {
+    console.error(err);
+    statusEl.textContent = "Não foi possível gerar o PDF com várias músicas.";
+  }
+});
 
 if (!sb) {
   // Sem a biblioteca do Supabase não há como entrar: mostra o aviso na tela de login

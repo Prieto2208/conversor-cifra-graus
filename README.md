@@ -12,6 +12,7 @@ Ferramenta web que converte cifras (acordes) em graus numéricos, mantendo a let
 - Mantém os graus na mesma coluna dos acordes originais
 - Permite editar os graus à mão (botão Editar); a edição vale para o PDF, o Copiar e as cifras salvas
 - Compartilha o resultado em PDF (no celular abre o menu de compartilhar, com WhatsApp; no computador baixa o arquivo), pedindo o nome da música, ou copia para a área de transferência
+- PDF com várias músicas: escolhe cifras salvas, define a ordem (setas ↑ ↓) e gera um PDF só, com cada música numa página nova ou uma embaixo da outra
 - Registro de cifras (com login): salvar, buscar, abrir para editar e excluir cifras, guardadas no Supabase
 - A conversão roda no navegador; só as cifras que você salva vão para o banco
 
