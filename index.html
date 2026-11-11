@@ -174,6 +174,7 @@
 
   /* PDF com várias músicas: escolher as cifras salvas e a ordem */
   #multiDialog { width: min(760px, calc(100% - 32px)); }
+  .no-share .share-only { display: none; }
   .multi-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 12px; }
   @media (max-width: 600px) { .multi-cols { grid-template-columns: 1fr; } }
   .multi-cols h3 { font-size: 0.9rem; margin: 0 0 8px; }
@@ -553,7 +554,7 @@
         <h2>Em graus</h2>
         <div class="btns">
           <button class="ghost" id="editGrades" aria-pressed="false">Editar</button>
-          <button class="ghost" id="share">Compartilhar PDF</button>
+          <button class="ghost" id="share">PDF</button>
           <button id="copy">Copiar</button>
         </div>
       </div>
@@ -650,13 +651,14 @@
 
 <dialog id="nameDialog" aria-labelledby="nameTitle">
   <form id="nameForm">
-    <h2 id="nameTitle">Compartilhar PDF</h2>
+    <h2 id="nameTitle">Gerar PDF</h2>
     <label for="fileName">Nome da música</label>
     <input type="text" id="fileName" placeholder="Ex.: Ousado Amor" autocomplete="off" maxlength="100">
     <p class="hint">Arquivo: <strong id="filePreview">cifra-em-graus.pdf</strong></p>
     <div class="btns">
       <button type="button" class="ghost" id="nameCancel">Cancelar</button>
-      <button type="submit">Compartilhar</button>
+      <button type="submit" data-action="download">Baixar PDF</button>
+      <button type="submit" class="ghost share-only" data-action="share">Compartilhar</button>
     </div>
   </form>
 </dialog>
@@ -693,7 +695,8 @@
     <p class="multi-error" id="multiError" role="status"></p>
     <div class="btns">
       <button type="button" class="ghost" id="multiCancel">Cancelar</button>
-      <button type="submit" id="multiSubmit">Gerar PDF</button>
+      <button type="submit" id="multiSubmit" data-action="download">Baixar PDF</button>
+      <button type="submit" class="ghost share-only" data-action="share">Compartilhar</button>
     </div>
   </form>
 </dialog>
@@ -1339,11 +1342,19 @@ function songLines(record) {
   });
 }
 
-// No celular abre o menu de compartilhar do aparelho (WhatsApp, e-mail...).
-// Onde não há esse menu (alguns computadores), baixa o PDF.
-async function sharePdf(blob, filename, title) {
+// O navegador consegue compartilhar arquivos (menu do aparelho: WhatsApp, e-mail...)?
+// Onde não consegue, o botão Compartilhar some e fica só o Baixar PDF.
+const CAN_SHARE_FILES = (() => {
+  try { return !!(navigator.canShare && navigator.canShare({ files: [new File([""], "t.pdf", { type: "application/pdf" })] })); }
+  catch { return false; }
+})();
+if (!CAN_SHARE_FILES) document.documentElement.classList.add("no-share");
+
+// mode "download": sempre baixa o arquivo (no computador é o que se quer).
+// mode "share": abre o menu de compartilhar; se não der, baixa.
+async function sharePdf(blob, filename, title, mode = "share") {
   const file = new File([blob], filename, { type: "application/pdf" });
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (mode === "share" && navigator.canShare && navigator.canShare({ files: [file] })) {
     try {
       await navigator.share({ files: [file], title: title || filename });
       return "shared";
@@ -1405,6 +1416,11 @@ $("share").addEventListener("click", () => {
   fileNameInput.select();
 });
 
+// Qual botão enviou o formulário: "Compartilhar" ou "Baixar PDF" (Enter = baixar)
+function pdfAction(e) {
+  return e.submitter && e.submitter.dataset.action === "share" ? "share" : "download";
+}
+
 $("nameForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const filename = safeFileName(fileNameInput.value);
@@ -1413,7 +1429,7 @@ $("nameForm").addEventListener("submit", async (e) => {
   nameDialog.close();
   try {
     const blob = buildPdf(title); // síncrono: o compartilhar precisa vir logo após o clique
-    const result = await sharePdf(blob, filename, title);
+    const result = await sharePdf(blob, filename, title, pdfAction(e));
     statusEl.textContent = result === "shared" ? "PDF compartilhado: " + filename
       : result === "cancelled" ? "Compartilhamento cancelado."
       : "PDF baixado: " + filename;
@@ -2104,7 +2120,7 @@ $("multiForm").addEventListener("submit", async (e) => {
   multiDialog.close();
   try {
     const blob = buildPdf(title || "Repertório", songs, $("multiNewPage").checked); // síncrono, logo após o clique
-    const result = await sharePdf(blob, filename, title || "Repertório");
+    const result = await sharePdf(blob, filename, title || "Repertório", pdfAction(e));
     const n = songs.length + (songs.length === 1 ? " música" : " músicas");
     statusEl.textContent = result === "shared" ? "PDF compartilhado (" + n + "): " + filename
       : result === "cancelled" ? "Compartilhamento cancelado."
