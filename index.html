@@ -2118,6 +2118,9 @@ $("multiForm").addEventListener("submit", async (e) => {
     return { title: s.titulo, lines: songLines(s) };
   });
   multiDialog.close();
+  // Depois de gerar, começa do zero na próxima vez: sem músicas marcadas e sem nome
+  multiPicked = [];
+  multiName.value = "";
   try {
     const blob = buildPdf(title || "Repertório", songs, $("multiNewPage").checked); // síncrono, logo após o clique
     const result = await sharePdf(blob, filename, title || "Repertório", pdfAction(e));
